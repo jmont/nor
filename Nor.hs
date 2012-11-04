@@ -44,3 +44,9 @@ lowCommit (repo, hd, headC, cCount) hfs =
         newC = Commit headC (map fst hfs) cCount
         in (newC:repo, hd', Just newC, cCount + 1)
 
+-- In the world, set HEAD commit to the commit referenced by id if it exists.
+lowCheckout :: World -> Int -> Maybe World
+lowCheckout (repo, hd, headC, cCount) id =
+    foldl (\mw c@(Commit pc hs cid) ->
+                if id == cid then Just (repo, hd, Just c, cCount)
+                             else mw) Nothing repo
