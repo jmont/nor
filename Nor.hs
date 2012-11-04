@@ -30,3 +30,17 @@ type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
 -- An empty world
 init :: World
 init = ([], mkHashDict, Nothing, 0)
+
+-- Commits changes, represented in the hash/file tuples, of all files at the
+-- current time; add new commit to repository, add new unique hash/file tuples
+-- to the hashDict, update HEAD commit, and increase the commit count.
+-- TODO: what about committing a nonempty repo with no changes?
+lowCommit :: World -> [(Hash, File)] -> World
+lowCommit world@(repo, hd, headC, cCount) [] = world
+lowCommit (repo, hd, headC, cCount) hfs =
+    let hd' = foldl (\hd (h, f) ->
+                        case hd h of Nothing -> addHash hd h f
+                                     otherwise -> hd) hd hfs
+        newC = Commit headC (map fst hfs) cCount
+        in (newC:repo, hd', Just newC, cCount + 1)
+
