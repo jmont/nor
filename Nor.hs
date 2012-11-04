@@ -19,12 +19,12 @@ addHash hd h f = (\x -> if x == h then Just f
                                   else hd h)
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
-                     , newHs :: [Hash] -- Hashes of files which changed
+                     , newHs :: [Hash] -- Hashes of all files at given time
                      , cid :: Int -- Unique identifier
                      } deriving (Show)
 type Repo = [Commit]
 
--- head commit, hash->file, head commit, commitCount
+-- list of all commits, hash->file, head commit, commitCount
 type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
 
 -- An empty world
