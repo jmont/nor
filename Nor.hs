@@ -14,6 +14,10 @@ type Hash = String -- Cryptographic hash
 mkHashDict :: Hash -> Maybe File
 mkHashDict = \_ -> Nothing
 
+addHash :: (Hash -> Maybe File) -> Hash -> File -> (Hash -> Maybe File)
+addHash hd h f = (\x -> if x == h then Just f
+                                  else hd h)
+
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , newHs :: [Hash] -- Hashes of files which changed
                      , cid :: Int -- Unique identifier
