@@ -27,3 +27,6 @@ type Repo = [Commit]
 -- head commit, hash->file, head commit, commitCount
 type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
 
+-- An empty world
+init :: World
+init = ([], mkHashDict, Nothing, 0)
