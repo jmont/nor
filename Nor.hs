@@ -31,7 +31,7 @@ type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
 --newtype ShowWorld a = ShowWorld { getWorld :: a }
 --instance Show (ShowWorld a)  where
 --    show sw = printWorld $ getWorld sw
---printWorld w@(r, _, hc, _) = show r
+--printWorld w@(r, _, headC, _) = show r
 
 -- An empty world
 init :: World
@@ -51,15 +51,14 @@ lowCommit (repo, hashdict, headC, cCount) hfs =
         in (newC:repo, hashdict', Just newC, cCount + 1)
 
 -- In the world, set HEAD commit to the commit referenced by id if it exists.
-lowCheckout :: World -> Int -> Maybe World
-lowCheckout (repo, hashdict, headC, cCount) id =
-    foldl (\mw c@(Commit pc hashes cid) ->
-                if id == cid then Just (repo, hashdict, Just c, cCount)
-                             else mw) Nothing repo
+commitById :: World -> Int -> Maybe Commit
+commitById (repo, hashdict, headC, cCount) id =
+    foldl (\mc c@(Commit pc hashes cid) ->
+                if id == cid then Just c
+                             else mc) Nothing repo
 
 medCheckout :: World -> Int -> Maybe (World, [File])
-medCheckout w@(_, hashdict, hc, _) id = do
-    w' <- lowCheckout w id
-    jhc <- hc -- hc is maybe Commit
-    files <- mapM hashdict (hashes jhc)
-    return (w', files)
+medCheckout w@(r, hashdict, _, cc) id = do
+    headC' <- commitById w id
+    files <- mapM hashdict (hashes headC')
+    return ((r, hashdict, Just headC', cc), files)
