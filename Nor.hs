@@ -1,5 +1,7 @@
 module Nor where
 
+import Control.Monad
+
 commit :: [String] -> IO ()
 commit _ = putStrLn "commit"
 
@@ -15,17 +17,21 @@ mkHashDict :: Hash -> Maybe File
 mkHashDict = \_ -> Nothing
 
 addHash :: (Hash -> Maybe File) -> Hash -> File -> (Hash -> Maybe File)
-addHash hd h f = (\x -> if x == h then Just f
-                                  else hd h)
+addHash hashdict h f = (\x -> if x == h then Just f
+                                  else hashdict h)
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
-                     , newHs :: [Hash] -- Hashes of all files at given time
+                     , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Int -- Unique identifier
                      } deriving (Show)
 type Repo = [Commit]
 
 -- list of all commits, hash->file, head commit, commitCount
 type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
+--newtype ShowWorld a = ShowWorld { getWorld :: a }
+--instance Show (ShowWorld a)  where
+--    show sw = printWorld $ getWorld sw
+--printWorld w@(r, _, hc, _) = show r
 
 -- An empty world
 init :: World
@@ -36,17 +42,24 @@ init = ([], mkHashDict, Nothing, 0)
 -- to the hashDict, update HEAD commit, and increase the commit count.
 -- TODO: what about committing a nonempty repo with no changes?
 lowCommit :: World -> [(Hash, File)] -> World
-lowCommit world@(repo, hd, headC, cCount) [] = world
-lowCommit (repo, hd, headC, cCount) hfs =
-    let hd' = foldl (\hd (h, f) ->
-                        case hd h of Nothing -> addHash hd h f
-                                     otherwise -> hd) hd hfs
+lowCommit world@(repo, hashdict, headC, cCount) [] = world
+lowCommit (repo, hashdict, headC, cCount) hfs =
+    let hashdict' = foldl (\hashdict (h, f) ->
+                        case hashdict h of Nothing -> addHash hashdict h f
+                                           otherwise -> hashdict) hashdict hfs
         newC = Commit headC (map fst hfs) cCount
-        in (newC:repo, hd', Just newC, cCount + 1)
+        in (newC:repo, hashdict', Just newC, cCount + 1)
 
 -- In the world, set HEAD commit to the commit referenced by id if it exists.
 lowCheckout :: World -> Int -> Maybe World
-lowCheckout (repo, hd, headC, cCount) id =
-    foldl (\mw c@(Commit pc hs cid) ->
-                if id == cid then Just (repo, hd, Just c, cCount)
+lowCheckout (repo, hashdict, headC, cCount) id =
+    foldl (\mw c@(Commit pc hashes cid) ->
+                if id == cid then Just (repo, hashdict, Just c, cCount)
                              else mw) Nothing repo
+
+medCheckout :: World -> Int -> Maybe (World, [File])
+medCheckout w@(_, hashdict, hc, _) id = do
+    w' <- lowCheckout w id
+    jhc <- hc -- hc is maybe Commit
+    files <- mapM hashdict (hashes jhc)
+    return (w', files)
