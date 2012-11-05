@@ -6,7 +6,7 @@ commit _ = putStrLn "commit"
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
-                 , lines :: [String] -- Simple representation for now
+                 , contents :: [String] -- Simple representation for now
                  } deriving (Show)
 type Hash = String -- Cryptographic hash
 
