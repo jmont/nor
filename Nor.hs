@@ -13,13 +13,6 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
 type Hash = String -- Cryptographic hash
 type HashDict = [(Hash, File)]
 
---mkHashDict :: Hash -> Maybe File
---mkHashDict = \_ -> Nothing
-
---addHash :: (Hash -> Maybe File) -> Hash -> File -> (Hash -> Maybe File)
---addHash hashdict h f = (\x -> if x == h then Just f
---                                  else hashdict h)
-
 mkHashDict = []
 
 addHash :: HashDict -> Hash -> File -> HashDict
@@ -29,6 +22,11 @@ findFile :: HashDict -> Hash -> Maybe File
 findFile hd hash = 
     foldl (\res (h,f) -> 
         if h == hash then Just f else res) Nothing hd
+
+getHash :: HashDict -> File -> Maybe Hash
+getHash hd file = 
+    foldl (\res (h,f) ->
+        if path file == path f then Just h else res) Nothing hd
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
