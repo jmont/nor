@@ -3,15 +3,16 @@ import System.IO
 import Data.List
 import qualified Nor as N
 
-type Universe = ([(N.Hash,N.File)], N.World)
+type Universe = (N.HashDict, N.World)
 
 worldPath = "./.nor/world"
 
-saveWorld :: N.World -> IO ()
-saveWorld w = do
+{-saveWorld :: N.World -> IO ()
+    saveWorld w = do
     handle <- openFile worldPath WriteMode
     hPutStr handle $ show w
     hClose handle
+-}
 
 currentFiles :: N.World -> [ N.File]
 currentFiles w@(_,hd,_,_) = N.getFiles hd
@@ -23,17 +24,27 @@ dispatch :: Universe -> String -> [String] -> IO (Universe)
 dispatch u@(cfs, w) "vcf" _ = do
     putStrLn $ show (currentFiles w)
     return u
-dispatch (cfs, w) "commit" [] = 
-    return (cfs, N.lowCommit w cfs)
+dispatch (cfs, w) "commit" [] = return (cfs, N.lowCommit w cfs)
 -- Editor commands
 dispatch (cfs, w) "new" [name] = return (addNewFile cfs name, w)
 dispatch u@(cfs, _) "cfs" [] = do
     putStrLn $ show cfs
     return u
+dispatch u@(cfs, w) "app" [name,txt] = 
+    let mu = N.getRmFile cfs name
+     in case mu
+          of Just (f, cfs') -> 
+                (let f' = N.File (N.path f) (N.contents f ++ [txt])
+                  in return (N.addHash cfs' ("hash_"++name) f', w))
+             otherwise -> return u   
+{-
+    N.getRmFile cfs name >>=
+    (\(f, cfs') -> 
+        let f' = N.File (N.path f) (N.contents f ++ [txt])
+         in return (N.addHash cfs' ("hash_"++name) f', w))
+-}
 -- Default
-dispatch u _ _ = do
-    putStrLn "    ! Invalid Command"
-    return u
+dispatch u _ _ = putStrLn "    ! Invalid Command" >> return u
 
 main = do 
     main' ([], N.init)
@@ -50,6 +61,6 @@ main' u@(cfs, w) = do
         (cfs', w') <- dispatch u cmd args
         main' (cfs', w')
     else do
-        saveWorld w
+--        saveWorld w
         return ()
  

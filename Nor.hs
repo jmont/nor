@@ -6,7 +6,8 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
                  } deriving (Show)
 type Hash = String -- Cryptographic hash
-type HashDict = [(Hash, File)]
+type HashEntry = (Hash, File)
+type HashDict = [HashEntry]
 
 mkHashDict = []
 
@@ -25,6 +26,14 @@ getHash hd file =
 
 getFiles :: HashDict -> [File]
 getFiles = map (\(h,f) -> f)
+
+getRmFile :: HashDict -> String -> Maybe (File, HashDict)
+getRmFile hd p = 
+    let (mf, hd') = foldl (\(mf,acc) (h,f) -> 
+                                if path f == p 
+                              then (Just f, acc) 
+                              else (mf,(h,f):acc)) (Nothing, []) hd
+     in mf >>= (\x -> return (x, hd'))
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
