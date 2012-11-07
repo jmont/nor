@@ -1,10 +1,5 @@
 module Nor where
-
 import Control.Monad
-
-commit :: [String] -> IO ()
-commit _ = putStrLn "commit"
-
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
@@ -27,6 +22,9 @@ getHash :: HashDict -> File -> Maybe Hash
 getHash hd file = 
     foldl (\res (h,f) ->
         if path file == path f then Just h else res) Nothing hd
+
+getFiles :: HashDict -> [File]
+getFiles = map (\(h,f) -> f)
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time

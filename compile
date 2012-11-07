@@ -1,0 +1,3 @@
+#!/bin/bash
+ghc -o nor Main.hs Nor.hs
+

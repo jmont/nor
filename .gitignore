@@ -1,0 +1,6 @@
+*.swp
+.nor/
+*.o
+*.hi
+nor
+
