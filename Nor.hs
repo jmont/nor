@@ -11,14 +11,24 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
                  } deriving (Show)
 type Hash = String -- Cryptographic hash
+type HashDict = [(Hash, File)]
 
+--mkHashDict :: Hash -> Maybe File
+--mkHashDict = \_ -> Nothing
 
-mkHashDict :: Hash -> Maybe File
-mkHashDict = \_ -> Nothing
+--addHash :: (Hash -> Maybe File) -> Hash -> File -> (Hash -> Maybe File)
+--addHash hashdict h f = (\x -> if x == h then Just f
+--                                  else hashdict h)
 
-addHash :: (Hash -> Maybe File) -> Hash -> File -> (Hash -> Maybe File)
-addHash hashdict h f = (\x -> if x == h then Just f
-                                  else hashdict h)
+mkHashDict = []
+
+addHash :: HashDict -> Hash -> File -> HashDict
+addHash hs h f = (h,f):hs
+
+findFile :: HashDict -> Hash -> Maybe File
+findFile hd hash = 
+    foldl (\res (h,f) -> 
+        if h == hash then Just f else res) Nothing hd
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
@@ -27,7 +37,7 @@ data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
 type Repo = [Commit]
 
 -- list of all commits, hash->file, head commit, commitCount
-type World = (Repo, Hash -> Maybe File, Maybe Commit, Int)
+type World = (Repo, HashDict, Maybe Commit, Int)
 --newtype ShowWorld a = ShowWorld { getWorld :: a }
 --instance Show (ShowWorld a)  where
 --    show sw = printWorld $ getWorld sw
@@ -45,8 +55,9 @@ lowCommit :: World -> [(Hash, File)] -> World
 lowCommit world@(repo, hashdict, headC, cCount) [] = world
 lowCommit (repo, hashdict, headC, cCount) hfs =
     let hashdict' = foldl (\hashdict (h, f) ->
-                        case hashdict h of Nothing -> addHash hashdict h f
-                                           otherwise -> hashdict) hashdict hfs
+                        case findFile hashdict h 
+                            of Nothing -> addHash hashdict h f
+                               otherwise -> hashdict) hashdict hfs
         newC = Commit headC (map fst hfs) cCount
         in (newC:repo, hashdict', Just newC, cCount + 1)
 
@@ -60,5 +71,6 @@ commitById (repo, hashdict, headC, cCount) id =
 medCheckout :: World -> Int -> Maybe (World, [File])
 medCheckout w@(r, hashdict, _, cc) id = do
     headC' <- commitById w id
-    files <- mapM hashdict (hashes headC')
+    files <- mapM (findFile hashdict) (hashes headC')
     return ((r, hashdict, Just headC', cc), files)
+
