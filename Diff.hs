@@ -39,6 +39,10 @@ dg02 = getDiff g0 g2
 combinediff :: Eq t => [(DI, t)] -> [(DI, t)] -> [t]
 combinediff [] d2s = map snd d2s
 combinediff d1s [] = map snd d1s
+combinediff ((S, t1):d1s) (d2@(S, t2):d2s) =
+    if t1 == t2
+        then t1:combinediff d1s d2s -- add same only once
+        else t1:combinediff d1s (d2:d2s)
 combinediff ((S, t1):d1s) d2s = t1:combinediff d1s d2s --added so add
 combinediff d1s ((S, t2):d2s) = t2:combinediff d1s d2s --added so add
 combinediff ((bof1, t1):d1s) ((bof2, t2):d2s) =
