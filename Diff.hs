@@ -54,3 +54,6 @@ combinediff ((bof1, t1):d1s) ((bof2, t2):d2s) =
 
 createFromDiff :: [(DI,t)] -> [t]
 createFromDiff diffs = map snd (filter (\(x,_) -> x/= F) diffs)
+
+--Algebraic laws
+--f1 == createfromdiff (getdiff 0 f1)
