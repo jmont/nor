@@ -1,3 +1,5 @@
+module Diff where
+
 import Data.Algorithm.Diff
 
 a0 = ["a"]
