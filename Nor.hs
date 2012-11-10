@@ -8,7 +8,7 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  } deriving (Show)
 type Hash = String -- Cryptographic hash
 type HashEntry = (Hash, File)
-type HashDict = Map Hash File
+type HashDict = Map.Map Hash File
 
 mkHashDict = Map.empty 
 
