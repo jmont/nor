@@ -1,5 +1,6 @@
 module Nor where
 import Control.Monad
+import qualified Data.Map as Map
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
@@ -7,33 +8,19 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  } deriving (Show)
 type Hash = String -- Cryptographic hash
 type HashEntry = (Hash, File)
-type HashDict = [HashEntry]
+type HashDict = Map Hash File
 
-mkHashDict = []
+mkHashDict = Map.empty 
 
 addHash :: HashDict -> Hash -> File -> HashDict
-addHash hs h f = (h,f):hs
+addHash hd h f = Map.insert h f hd
 
 findFile :: HashDict -> Hash -> Maybe File
 findFile hd hash = 
-    foldl (\res (h,f) -> 
-        if h == hash then Just f else res) Nothing hd
-
-getHash :: HashDict -> File -> Maybe Hash
-getHash hd file = 
-    foldl (\res (h,f) ->
-        if path file == path f then Just h else res) Nothing hd
+    Map.lookup hash hd
 
 getFiles :: HashDict -> [File]
-getFiles = map (\(h,f) -> f)
-
-getRmFile :: HashDict -> String -> Maybe (File, HashDict)
-getRmFile hd p = 
-    let (mf, hd') = foldl (\(mf,acc) (h,f) -> 
-                                if path f == p 
-                              then (Just f, acc) 
-                              else (mf,(h,f):acc)) (Nothing, []) hd
-     in mf >>= (\x -> return (x, hd'))
+getFiles = Map.elems
 
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
