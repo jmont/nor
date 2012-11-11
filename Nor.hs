@@ -4,6 +4,10 @@ import qualified Data.Map as Map
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
+import Data.List
+import Diff
+import Data.Algorithm.Diff
+import qualified Data.Set as Set
 ---------------------------------
 
 type Hash = Strict.ByteString -- Cryptographic hash
@@ -41,6 +45,10 @@ data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
                      } deriving (Show)
+instance Ord Commit where
+   compare c1 c2 = compare (cid c1) (cid c2)
+instance Eq Commit where
+   (==) c1 c2 = (cid c1) == (cid c2)
 
 type Repo = [Commit]
 
@@ -84,4 +92,14 @@ medCheckout w@(r, hashdict, _) id = do
     headC' <- commitById w id
     files <- mapM (findFile hashdict) (hashes headC')
     return ((r, hashdict, headC'), files)
+
+getLca :: Commit -> Commit -> Maybe Commit
+getLca  ca cb =
+   let  withSet (Commit Nothing _ _) (Commit Nothing _ _) set = Nothing
+        withSet (Commit (Just p1) _ _) c2 set =
+         if Set.member p1 set
+         then Just p1
+         else withSet p1 c2 set
+        withSet c1 c2 set = withSet c2 c1 set
+   in withSet ca cb Set.empty
 
