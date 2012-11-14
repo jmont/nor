@@ -1,0 +1,9 @@
+Nor - A simple revision control system [with algebraic laws]
+
+We set out to build a revision control system in Haskell inspired by Git that incorporates algebraic laws. A revision control system in a purely functional language can be more simply reasoned about, and along with algebraic laws, can be proven to work correctly. Our notion of 'working correctly' entails not breaking the state of the repository or losing information, for any sequence of commands. Note that this does not imply that merged files will be syntactically correct. 
+
+In order to achieve these goals we limited the scope of the project. Our file merging algorithm is simplistic -- it merely combines all most recent changes. Additionally, we have implemented a subset of Git's many commands. Furthermore, a Nor repository is not distributed; it lives only on a single computer.
+
+In building this revision control system we hope to gain insight about some of the design decisions and challeges faced by Git's creators. In particular, we hope to understand the implications of doing a state-based system, as opposed to a change-based system, like Darcs.
+
+Finally, we hope that implementing merge and rebase would help us understand the more subtle differences between these two fundamental features of git.
