@@ -30,12 +30,12 @@ dispatch (cfs, w) "new" [name] = return (addNewFile cfs name, w)
 dispatch u@(cfs, _) "cfs" [] = do
     putStrLn $ show cfs
     return u
-dispatch u@(cfs, w) "app" [name,txt] = 
-    case N.getRmFile cfs name
-      of Just (f, cfs') -> 
-            (let f' = N.File (N.path f) (N.contents f ++ [txt])
-              in return (N.addHash cfs' ("hash_"++name) f', w))
-         otherwise -> return u   
+--dispatch u@(cfs, w) "app" [name,txt] = 
+--    case N.getRmFile cfs name
+--      of Just (f, cfs') -> 
+--          (let f' = N.File (N.path f) (N.contents f ++ [txt])
+--              in return (N.addHash cfs' ("hash_"++name) f', w))
+--         otherwise -> return u   
 -- Default
 dispatch u _ _ = putStrLn "    ! Invalid Command" >> return u
 
