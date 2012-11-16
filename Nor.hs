@@ -61,7 +61,8 @@ type World = (Repo, HashDict, Commit)
 
 -- An empty world
 init :: World
-init = ([], mkHashDict, Commit Nothing [] (getHash ([]::[Hash])))
+init = let initC = Commit Nothing [] (getHash ([]::[Hash]))
+       in ([initC], mkHashDict, initC)
 
 
 
