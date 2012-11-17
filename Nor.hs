@@ -10,7 +10,7 @@ import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
-import Data.Serialize
+import Data.Serialize 
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
@@ -19,9 +19,8 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
 
 instance Serialize File where
     put f = put ((encodeLazy (path f)) : (contents f))
-    get = get >>= Data.Serialize.getLazyByteString >>= 
-          (\lbs -> return (File "" [lbs]))
-
+    get = getListOf get >>= mapM Data.Serialize.getLazyByteString >>= 
+            (\lbsList -> return (File "" lbsList))
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
 
