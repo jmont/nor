@@ -1,6 +1,7 @@
 module Nor where
 import Control.Monad
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
@@ -50,10 +51,9 @@ instance Ord Commit where
 instance Eq Commit where
    (==) c1 c2 = (cid c1) == (cid c2)
 
-type Repo = [Commit]
-
 -- list of all commits, hash->file, head commit, commitCount
-type World = (Repo, HashDict, Commit)
+type Core = (Set.Set Commit, HashDict)
+type World = (Core, Commit)
 --newtype ShowWorld a = ShowWorld { getWorld :: a }
 --instance Show (ShowWorld a)  where
 --    show sw = printWorld $ getWorld sw
