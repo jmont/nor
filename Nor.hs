@@ -19,7 +19,8 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
 
 instance Serialize File where
     put f = put ((encodeLazy (path f)) : (contents f))
-    get = get >>= ((encodeLazy (path f)) : (contents f))
+    get = get >>= Data.Serialize.getLazyByteString >>= 
+          (\lbs -> return (File "" [lbs]))
 
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
