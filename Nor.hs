@@ -2,23 +2,15 @@ module Nor where
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Crypto.Hash.SHA1 (hashlazy, hash)
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString as Strict
 import Data.List
 import Diff
 import Data.Algorithm.Diff
 import qualified Data.Set as Set
+import ObjectStore
+import Crypto.Hash.SHA1 (hashlazy, hash)
+import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString as Strict
 ---------------------------------
-
-type Hash = Strict.ByteString -- Cryptographic hash
-
-class Hashable a where
-   getHash :: a -> Hash
-instance Hashable Strict.ByteString where --Hashable Hash
-   getHash h = h
-instance Hashable a => Hashable [a] where
-   getHash as = hash (Strict.concat (map getHash as))
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [Lazy.ByteString] -- Simple representation for now
