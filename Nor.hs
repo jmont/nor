@@ -60,9 +60,9 @@ type World = (Core, Commit)
 --printWorld w@(r, _, headC, _) = show r
 
 -- An empty world
-init :: World
-init = let initC = Commit Nothing [] (getHash ([]::[Hash]))
-       in ([initC], mkHashDict, initC)
+--init :: World
+--init = let initC = Commit Nothing [] (getHash ([]::[Hash]))
+--       in ([initC], mkHashDict, initC)
 
 
 
@@ -70,37 +70,37 @@ init = let initC = Commit Nothing [] (getHash ([]::[Hash]))
 -- current time; add new commit to repository, add new unique hash/file tuples
 -- to the hashDict, update HEAD commit, and increase the commit count.
 -- TODO: what about committing a nonempty repo with no changes?
-lowCommit :: World -> [File] -> World
-lowCommit world@(repo, hashdict, headC) [] = world
-lowCommit (repo, hashdict, headC) fs =
-    let  hs = map getHash fs
-         hashdict' = foldl (\hashdict (h,f) ->
-                        case findFile hashdict h
-                            of Nothing -> addHash hashdict h f
-                               otherwise -> hashdict) hashdict (zip hs fs)
-         newC = Commit (Just headC) hs (getHash hs)
-    in (newC:repo, hashdict', newC)
-
--- In the world, set HEAD commit to the commit referenced by id if it exists.
-commitById :: World -> Hash -> Maybe Commit
-commitById (repo, hashdict, headC) id =
-    foldl (\mc c@(Commit pc hashes cid) ->
-                if id == cid then Just c
-                             else mc) Nothing repo
-
-medCheckout :: World -> Hash -> Maybe (World, [File])
-medCheckout w@(r, hashdict, _) id = do
-    headC' <- commitById w id
-    files <- mapM (findFile hashdict) (hashes headC')
-    return ((r, hashdict, headC'), files)
-
-getLca :: Commit -> Commit -> Maybe Commit
-getLca  ca cb =
-   let  withSet (Commit Nothing _ _) (Commit Nothing _ _) set = Nothing
-        withSet (Commit (Just p1) _ _) c2 set =
-         if Set.member p1 set
-         then Just p1
-         else withSet p1 c2 set
-        withSet c1 c2 set = withSet c2 c1 set
-   in withSet ca cb Set.empty
-
+--lowCommit :: World -> [File] -> World
+--lowCommit world@(repo, hashdict, headC) [] = world
+--lowCommit (repo, hashdict, headC) fs =
+--    let  hs = map getHash fs
+--         hashdict' = foldl (\hashdict (h,f) ->
+--                        case findFile hashdict h
+--                            of Nothing -> addHash hashdict h f
+--                               otherwise -> hashdict) hashdict (zip hs fs)
+--         newC = Commit (Just headC) hs (getHash hs)
+--    in (newC:repo, hashdict', newC)
+--
+---- In the world, set HEAD commit to the commit referenced by id if it exists.
+--commitById :: World -> Hash -> Maybe Commit
+--commitById (repo, hashdict, headC) id =
+--    foldl (\mc c@(Commit pc hashes cid) ->
+--                if id == cid then Just c
+--                             else mc) Nothing repo
+--
+--medCheckout :: World -> Hash -> Maybe (World, [File])
+--medCheckout w@(r, hashdict, _) id = do
+--    headC' <- commitById w id
+--    files <- mapM (findFile hashdict) (hashes headC')
+--    return ((r, hashdict, headC'), files)
+--
+--getLca :: Commit -> Commit -> Maybe Commit
+--getLca  ca cb =
+--   let  withSet (Commit Nothing _ _) (Commit Nothing _ _) set = Nothing
+--        withSet (Commit (Just p1) _ _) c2 set =
+--         if Set.member p1 set
+--         then Just p1
+--         else withSet p1 c2 set
+--        withSet c1 c2 set = withSet c2 c1 set
+--   in withSet ca cb Set.empty
+--
