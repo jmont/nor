@@ -10,14 +10,16 @@ import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
+import Data.Serialize
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [Lazy.ByteString] -- Simple representation for now
                  } deriving (Show)
 
-instance Hashable File where
-   getHash f = hashlazy (Lazy.concat (contents f)) -- Doesn't include path atm
+instance Serialize File where
+    put f = put ((encodeLazy (path f)) : (contents f))
+    get = get >>= ((encodeLazy (path f)) : (contents f))
 
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
