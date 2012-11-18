@@ -10,19 +10,35 @@ import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
-import Data.Serialize 
+import Data.Serialize
+import qualified Control.Monad.State as S
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [Lazy.ByteString] -- Simple representation for now
                  } deriving (Show)
-
+--GET IS BROKEN!!
 instance Serialize File where
     put f = put ((encodeLazy (path f)) : (contents f))
-    get = getListOf get >>= mapM Data.Serialize.getLazyByteString >>= 
+    get = getListOf get >>= mapM Data.Serialize.getLazyByteString >>=
             (\lbsList -> return (File "" lbsList))
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
+
+--Mapping between Hashes -> a
+type WithObjects a b = S.State (ObjectStore a) b
+
+addHashableA :: Serialize a => a -> WithObjects a Hash
+addHashableA a = do
+                 os <- S.get
+                 let (hash,newState) = addObject os a
+                 S.put newState
+                 return hash
+--Probs broken
+createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
+createCommit s pc = do
+   os <- S.get
+   return $ Commit pc (getHashes os) (encode "")
 
 mkHashDict = Map.empty
 
