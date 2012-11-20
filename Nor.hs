@@ -34,13 +34,15 @@ addHashableA a = do
                  let (hash,newState) = addObject os a
                  S.put newState
                  return hash
+
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
 createCommit s pc = 
    do
    newState <- S.get
    let (h,os) = S.runState s newState
+   let hashes = getHashes os
    S.put os
-   return (Commit pc (getHashes os) (encode ""))
+   return (Commit pc hashes (hash (Strict.concat hashes)))
 
 addCommit :: WithObjects File Commit -> Core -> Core
 addCommit s c1@(commitS, os) = 
@@ -73,10 +75,13 @@ type Core = (Set.Set Commit, ObjectStore File)
 type World = (Core, Commit)
 
 --Demo of how to use WithObjects
-f = File "test" [(encodeLazy "hello")]
+file1 = File "test1" [(encodeLazy "hello")]
+file2 = File "test2" [(encodeLazy "bye")]
 core = (Set.empty, mkEmptyOS)
-withF = addHashableA f
-withC = createCommit withF Nothing
+withF1 = addHashableA file1
+withF2 = addHashableA file2
+withF12 = withF1 >>= (\x -> withF2)
+withC = createCommit withF12 Nothing
 core' = addCommit withC core
 
 --newtype ShowWorld a = ShowWorld { getWorld :: a }
@@ -85,11 +90,9 @@ core' = addCommit withC core
 --printWorld w@(r, _, headC, _) = show r
 
 -- An empty world
---init :: World
---init = let initC = Commit Nothing [] (getHash ([]::[Hash]))
---       in ([initC], mkHashDict, initC)
-
-
+init :: World
+init = let initC = Commit Nothing [] (hash (encode ""))
+       in ((Set.insert initC Set.empty, mkEmptyOS),initC)
 
 -- Commits changes, represented in the hash/file tuples, of all files at the
 -- current time; add new commit to repository, add new unique hash/file tuples
