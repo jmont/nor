@@ -34,11 +34,18 @@ addHashableA a = do
                  let (hash,newState) = addObject os a
                  S.put newState
                  return hash
---Probs broken
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
-createCommit s pc = do
-   os <- S.get
-   return $ Commit pc (getHashes os) (encode "")
+createCommit s pc = 
+   do
+   newState <- S.get
+   let (h,os) = S.runState s newState
+   S.put os
+   return (Commit pc (getHashes os) (encode ""))
+
+addCommit :: WithObjects File Commit -> Core -> Core
+addCommit s c1@(commitS, os) = 
+   let (newCommit,newOS) = S.runState s os
+   in (Set.insert newCommit commitS,newOS)
 
 mkHashDict = Map.empty
 
@@ -62,8 +69,16 @@ instance Eq Commit where
    (==) c1 c2 = (cid c1) == (cid c2)
 
 -- list of all commits, hash->file, head commit, commitCount
-type Core = (Set.Set Commit, HashDict)
+type Core = (Set.Set Commit, ObjectStore File)
 type World = (Core, Commit)
+
+--Demo of how to use WithObjects
+f = File "test" [(encodeLazy "hello")]
+core = (Set.empty, mkEmptyOS)
+withF = addHashableA f
+withC = createCommit withF Nothing
+core' = addCommit withC core
+
 --newtype ShowWorld a = ShowWorld { getWorld :: a }
 --instance Show (ShowWorld a)  where
 --    show sw = printWorld $ getWorld sw
