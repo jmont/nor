@@ -90,19 +90,16 @@ commitById (commitSet, _) id =
                 if id == cid then Just c
                              else mc) Nothing (Set.elems commitSet)
 
---medCheckout :: World -> Hash -> Maybe (World, [File])
---medCheckout w@(r, hashdict, _) id = do
---    headC' <- commitById w id
---    files <- mapM (findFile hashdict) (hashes headC')
---    return ((r, hashdict, headC'), files)
---
---getLca :: Commit -> Commit -> Maybe Commit
---getLca  ca cb =
---   let  withSet (Commit Nothing _ _) (Commit Nothing _ _) set = Nothing
---        withSet (Commit (Just p1) _ _) c2 set =
---         if Set.member p1 set
---         then Just p1
---         else withSet p1 c2 set
---        withSet c1 c2 set = withSet c2 c1 set
---   in withSet ca cb Set.empty
---
+medCheckout :: Core -> Commit -> Maybe [File]
+medCheckout (_,os) (Commit _ hashes _) =
+    sequence (map (getObject os) hashes)
+
+getLca :: Commit -> Commit -> Commit
+getLca  ca cb =
+   let ancSeta = Set.fromList (ancestorList ca)
+   in foldr (\a z -> if (Set.member a ancSeta) then a else z)
+      (error "No LCA") (ancestorList cb)
+
+ancestorList :: Commit -> [Commit]
+ancestorList c1@(Commit Nothing _ _) = [c1]
+ancestorList c1@(Commit (Just pc) _ _) = c1 : (ancestorList pc)
