@@ -101,13 +101,13 @@ init = let initC = Commit Nothing [] (hash (encode ""))
 --         newC = Commit (Just headC) hs (getHash hs)
 --    in (newC:repo, hashdict', newC)
 --
----- In the world, set HEAD commit to the commit referenced by id if it exists.
---commitById :: World -> Hash -> Maybe Commit
---commitById (repo, hashdict, headC) id =
---    foldl (\mc c@(Commit pc hashes cid) ->
---                if id == cid then Just c
---                             else mc) Nothing repo
---
+-- In the world, set HEAD commit to the commit referenced by id if it exists.
+commitById :: Core -> Hash -> Maybe Commit
+commitById (commitSet, _) id =
+    foldl (\mc c@(Commit _ _ cid) ->
+                if id == cid then Just c
+                             else mc) Nothing (Set.elems commitSet)
+
 --medCheckout :: World -> Hash -> Maybe (World, [File])
 --medCheckout w@(r, hashdict, _) id = do
 --    headC' <- commitById w id
