@@ -29,6 +29,9 @@ type HashDict = Map.Map Hash File
 --Mapping between Hashes -> a
 type WithObjects a b = S.State (ObjectStore a) b
 
+addHashableAs :: Serialize a => [a] -> WithObjects a Hash
+addHashableAs as = foldr1 (>>) (map addHashableA as)
+
 addHashableA :: Serialize a => a -> WithObjects a Hash
 addHashableA a = do
                  os <- S.get
@@ -50,18 +53,6 @@ addCommit s (commitS, os) =
    let (newCommit,newOS) = S.runState s os
    in (Set.insert newCommit commitS,newOS)
 
-mkHashDict = Map.empty
-
-addHash :: HashDict -> Hash -> File -> HashDict
-addHash hd h f = Map.insert h f hd
-
-findFile :: HashDict -> Hash -> Maybe File
-findFile hd hash =
-    Map.lookup hash hd
-
-getFiles :: HashDict -> [File]
-getFiles = Map.elems
-
 data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
@@ -82,13 +73,18 @@ core = (Set.empty, mkEmptyOS)
 withF1 = addHashableA file1
 withF2 = addHashableA file2
 withF12 = withF1 >> withF2
+withF12' = addHashableAs [file1,file2]
 withC = createCommit withF12 Nothing
-core' = addCommit withC core
+withC' = createCommit withF12' Nothing
+core'  = addCommit withC core
+core'' = addCommit withC' core
 
 -- An empty world
 init :: World
 init = let initC = Commit Nothing [] (hash (encode ""))
        in ((Set.singleton initC, mkEmptyOS),initC)
+
+
 
 -- Commits changes, represented in the hash/file tuples, of all files at the
 -- current time; add new commit to repository, add new unique hash/file tuples
