@@ -37,7 +37,7 @@ addHashableA a = do
                  return hash
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
-createCommit s pc = 
+createCommit s pc =
    do
    newState <- S.get
    let (h,os) = S.runState s newState
@@ -46,7 +46,7 @@ createCommit s pc =
    return (Commit pc hashes (hash (Strict.concat hashes)))
 
 addCommit :: WithObjects File Commit -> Core -> Core
-addCommit s c1@(commitS, os) = 
+addCommit s c1@(commitS, os) =
    let (newCommit,newOS) = S.runState s os
    in (Set.insert newCommit commitS,newOS)
 
@@ -84,11 +84,6 @@ withF2 = addHashableA file2
 withF12 = withF1 >>= (\x -> withF2)
 withC = createCommit withF12 Nothing
 core' = addCommit withC core
-
---newtype ShowWorld a = ShowWorld { getWorld :: a }
---instance Show (ShowWorld a)  where
---    show sw = printWorld $ getWorld sw
---printWorld w@(r, _, headC, _) = show r
 
 -- An empty world
 init :: World
