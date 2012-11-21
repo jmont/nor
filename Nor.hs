@@ -84,24 +84,6 @@ init :: World
 init = let initC = Commit Nothing [] (hash (encode ""))
        in ((Set.singleton initC, mkEmptyOS),initC)
 
-
-
--- Commits changes, represented in the hash/file tuples, of all files at the
--- current time; add new commit to repository, add new unique hash/file tuples
--- to the hashDict, update HEAD commit, and increase the commit count.
--- TODO: what about committing a nonempty repo with no changes?
---lowCommit :: World -> [File] -> World
---lowCommit world@(repo, hashdict, headC) [] = world
---lowCommit (repo, hashdict, headC) fs =
---    let  hs = map getHash fs
---         hashdict' = foldl (\hashdict (h,f) ->
---                        case findFile hashdict h
---                            of Nothing -> addHash hashdict h f
---                               otherwise -> hashdict) hashdict (zip hs fs)
---         newC = Commit (Just headC) hs (getHash hs)
---    in (newC:repo, hashdict', newC)
---
--- In the world, set HEAD commit to the commit referenced by id if it exists.
 commitById :: Core -> Hash -> Maybe Commit
 commitById (commitSet, _) id =
     foldl (\mc c@(Commit _ _ cid) ->
