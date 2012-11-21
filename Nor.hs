@@ -17,11 +17,12 @@ import qualified Control.Monad.State as S
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [Lazy.ByteString] -- Simple representation for now
                  } deriving (Show)
---GET IS BROKEN!!
+
 instance Serialize File where
-    put f = put ((encodeLazy (path f)) : (contents f))
-    get = getListOf get >>= mapM Data.Serialize.getLazyByteString >>=
-            (\lbsList -> return (File "" lbsList))
+    put f = put (path f,contents f)
+    get = getTwoOf (get :: Get String) (get :: Get [Lazy.ByteString]) >>=
+         (\(p,cont) -> return $ File p cont)
+
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
 
