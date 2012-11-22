@@ -6,14 +6,14 @@ type Edit = (DI,String)
 type Path = String
 
 data Patch = AtPath Path PatchAction
-             | Atomic [Patch]
+             | Atomic [Patch] deriving (Show)
 
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
                  | ChangeHunk { offset :: Int -- Starting Line Number
                               , old :: [String] -- List of old lines
                               , new :: [String] -- list of new lines
-                              }
+                              } deriving (Show)
 
 applyEdits :: [Edit] -> [String] -> Maybe [String]
 applyEdits es strs = sequence (aE es strs)
@@ -33,14 +33,18 @@ editsToChangeHunks es = eTCH es 0
    where eTCH es lineNum =
           let keeps = takeWhile eqB es
               rest = dropWhile eqB es
-              changes = takeWhile eqB rest
+              changes = takeWhile neqB rest
+              rest'' = dropWhile neqB rest
               deletes = map snd (filter eqF changes)
-              adds = map snd (filter neqB changes)
+              adds = map snd (filter neqF changes)
               ch = ChangeHunk (lineNum + length keeps) deletes adds
-          in ch : eTCH es (offset ch + length adds - length deletes)
+          in if (length adds + length deletes) == 0
+             then []
+             else ch : eTCH rest'' (offset ch + length adds - length deletes)
          eqB = ((==) B . fst)
-         eqF = ((==) F . fst)
          neqB = ((/=) B . fst)
+         eqF = ((==) F . fst)
+         neqF = ((/=) F . fst)
 
 mergePatches :: Patch -> Patch -> Patch
 mergePatches p1 p2 = error "Not written yet"
