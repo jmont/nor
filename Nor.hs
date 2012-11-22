@@ -2,9 +2,11 @@ module Nor where
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Maybe
 import Data.List
 import Diff
 import Data.Algorithm.Diff
+import Patch
 import qualified Data.Set as Set
 import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
@@ -103,6 +105,31 @@ getLca  ca cb =
 ancestorList :: Commit -> [Commit]
 ancestorList c1@(Commit Nothing _ _) = [c1]
 ancestorList c1@(Commit (Just pc) _ _) = c1 : (ancestorList pc)
+--Return a patch from commit a to commit b
+commitsToPatch :: Commit -> Commit -> WithObjects File Patch
+commitsToPatch ca cb = S.state (\os ->
+      let hashesA = Set.fromList (hashes ca)
+          hashesB = Set.fromList (hashes cb)
+          onlyA = hashesA Set.\\ hashesB
+          onlyB = hashesB Set.\\ hashesA
+          filesOnlyA = getFilesForSet os onlyA
+          filesOnlyB = getFilesForSet os onlyB
+          aPatchMap = foldr (\f pm -> Map.insert (path f)
+               [ChangeHunk 0 (contents f) [], RemoveEmptyFile] pm)
+               Map.empty filesOnlyA
+          patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
+                     aPatchMap filesOnlyB
+          patch = Atomic $ Map.foldWithKey (\path pActions acc ->
+                     (map (AtPath path) pActions) ++ acc) [] patchMap
+          in (patch,os))
+   where getFilesForSet os hashesSet =
+          (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
+         alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
+         alterFun newFile Nothing =
+            Just $ [CreateEmptyFile, ChangeHunk 0 [] (contents newFile)]
+         alterFun newFile (Just [(ChangeHunk _ fContents []),_]) =
+            Just $ editsToChangeHunks $ getDiff fContents (contents newFile)
+         alterFun _ _ = error "Can't Happen"
 
 mergeC :: Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca = S.state (\os ->
