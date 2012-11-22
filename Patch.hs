@@ -17,24 +17,27 @@ data PatchAction = RemoveEmptyFile
 
 applyEdits :: [Edit] -> [String] -> Maybe [String]
 applyEdits es strs = sequence (aE es strs)
-   where aE ((B,str1):es) (str2:strs) = 
+   where aE ((B,str1):es) (str2:strs) =
             if (str1==str2) then Just str2 : aE es strs else [Nothing]
-         aE ((F,str1):es) (str2:strs) = 
+         aE ((F,str1):es) (str2:strs) =
             if (str1==str2) then aE es strs else [Nothing]
          aE ((S,str1):es) strs = Just str1 : aE es strs
          aE [] [] = []
          aE _  [] = [Nothing]
 
 editsToPatch :: [Edit] -> Path -> Patch
-editsToPatch es p = Atomic $ map (AtPath p) (eTP es 0)
-   where eTP es lineNum = 
+editsToPatch es p = Atomic $ map (AtPath p) (editsToChangeHunks es)
+
+editsToChangeHunks :: [Edit] -> [PatchAction]
+editsToChangeHunks es = eTCH es 0
+   where eTCH es lineNum =
           let keeps = takeWhile eqB es
               rest = dropWhile eqB es
               changes = takeWhile eqB rest
               deletes = map snd (filter eqF changes)
               adds = map snd (filter neqB changes)
               ch = ChangeHunk (lineNum + length keeps) deletes adds
-          in ch : eTP es (offset ch + length adds - length deletes)
+          in ch : eTCH es (offset ch + length adds - length deletes)
          eqB = ((==) B . fst)
          eqF = ((==) F . fst)
          neqB = ((/=) B . fst)
