@@ -41,3 +41,6 @@ editsToChangeHunks es = eTCH es 0
          eqB = ((==) B . fst)
          eqF = ((==) F . fst)
          neqB = ((/=) B . fst)
+
+mergePatches :: Patch -> Patch -> Patch
+mergePatches p1 p2 = error "Not written yet"

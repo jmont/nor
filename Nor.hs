@@ -105,6 +105,8 @@ getLca  ca cb =
 ancestorList :: Commit -> [Commit]
 ancestorList c1@(Commit Nothing _ _) = [c1]
 ancestorList c1@(Commit (Just pc) _ _) = c1 : (ancestorList pc)
+
+--Maybe not a withObjects because it doesn't create any new files?
 --Return a patch from commit a to commit b
 commitsToPatch :: Commit -> Commit -> WithObjects File Patch
 commitsToPatch ca cb = S.state (\os ->
@@ -131,7 +133,19 @@ commitsToPatch ca cb = S.state (\os ->
             Just $ editsToChangeHunks $ getDiff fContents (contents newFile)
          alterFun _ _ = error "Can't Happen"
 
-mergeC :: Commit -> Commit -> Commit -> WithObjects File Commit
-mergeC ca cb lca = S.state (\os ->
-      let hashes = getHashes os
-      in (Commit Nothing [] (hash (encode "")), os))
+applyPatch :: Patch -> [File] -> [File]
+applyPatch = error "Not implemented"
+
+mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
+mergeC ca cb lca newpc = S.state (\os ->
+      let wPatchA = commitsToPatch lca ca
+          wPatchB = commitsToPatch lca cb
+          patchAB = S.evalState (wPatchA >>= (\pa -> wPatchB >>= (\pb ->
+            return $ mergePatches pa pb))) os
+          lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
+          newFiles = applyPatch patchAB lcaFiles
+          --What happens if some files haven't changed??
+          (hs,newOS) = foldr (\f (hs,os) ->
+                  let (h,os') = addObject os f
+                  in (h:hs,os')) ([],os) newFiles
+      in (Commit (Just newpc) hs (hash (Strict.concat hs)),newOS))
