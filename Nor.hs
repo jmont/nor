@@ -15,12 +15,12 @@ import qualified Control.Monad.State as S
 ---------------------------------
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
-                 , contents :: [Lazy.ByteString] -- Simple representation for now
+                 , contents :: [String] -- Simple representation for now
                  } deriving (Show)
 
 instance Serialize File where
     put f = put (path f,contents f)
-    get = getTwoOf (get :: Get String) (get :: Get [Lazy.ByteString]) >>=
+    get = getTwoOf (get :: Get String) (get :: Get [String]) >>=
          (\(p,cont) -> return $ File p cont)
 
 type HashEntry = (Hash, File)
@@ -67,8 +67,8 @@ type Core = (Set.Set Commit, ObjectStore File)
 type World = (Core, Commit)
 
 --Demo of how to use WithObjects
-file1 = File "test1" [(encodeLazy "hello")]
-file2 = File "test2" [(encodeLazy "bye")]
+file1 = File "test1" ["hello"]
+file2 = File "test2" ["bye"]
 core = (Set.empty, mkEmptyOS)
 withF1 = addHashableA file1
 withF2 = addHashableA file2
