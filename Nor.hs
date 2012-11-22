@@ -103,3 +103,8 @@ getLca  ca cb =
 ancestorList :: Commit -> [Commit]
 ancestorList c1@(Commit Nothing _ _) = [c1]
 ancestorList c1@(Commit (Just pc) _ _) = c1 : (ancestorList pc)
+
+mergeC :: Commit -> Commit -> Commit -> WithObjects File Commit
+mergeC ca cb lca = S.state (\os ->
+      let hashes = getHashes os
+      in (Commit Nothing [] (hash (encode "")), os))
