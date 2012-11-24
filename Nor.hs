@@ -47,15 +47,16 @@ createCommit s pc =
    newState <- S.get
    let (h,os) = S.runState s newState
    let hashes = getHashes os
+   let pid = (pc >>= (\x -> return (cid x)))
    S.put os
-   return (Commit pc hashes (hash (Strict.concat hashes)))
+   return (Commit pid hashes (hash (Strict.concat hashes)))
 
 addCommit :: WithObjects File Commit -> Core -> Core
 addCommit s (commitS, os) =
    let (newCommit,newOS) = S.runState s os
    in (Set.insert newCommit commitS,newOS)
 
-data Commit = Commit { parent :: Maybe Commit -- Initial commit has nothing
+data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
                      } deriving (Show)
@@ -96,15 +97,17 @@ medCheckout :: Core -> Commit -> Maybe [File]
 medCheckout (_,os) (Commit _ hashes _) =
     sequence (map (getObject os) hashes)
 
-getLca :: Commit -> Commit -> Commit
-getLca  ca cb =
-   let ancSeta = Set.fromList (ancestorList ca)
+getLca :: Core -> Commit -> Commit -> Commit
+getLca core ca cb =
+   let ancSeta = Set.fromList (ancestorList core ca)
    in foldr (\a z -> if (Set.member a ancSeta) then a else z)
-      (error "No LCA") (ancestorList cb)
+      (error "No LCA") (ancestorList core cb)
 
-ancestorList :: Commit -> [Commit]
-ancestorList c1@(Commit Nothing _ _) = [c1]
-ancestorList c1@(Commit (Just pc) _ _) = c1 : (ancestorList pc)
+ancestorList :: Core -> Commit -> [Commit]
+ancestorList _ c1@(Commit Nothing _ _) = [c1]
+ancestorList core c1@(Commit (Just pid) _ _) =
+    let Just p = commitById core pid
+     in c1:(ancestorList core p)
 
 --Maybe not a withObjects because it doesn't create any new files?
 --Return a patch from commit a to commit b
@@ -148,4 +151,5 @@ mergeC ca cb lca newpc = S.state (\os ->
           (hs,newOS) = foldr (\f (hs,os) ->
                   let (h,os') = addObject os f
                   in (h:hs,os')) ([],os) newFiles
-      in (Commit (Just newpc) hs (hash (Strict.concat hs)),newOS))
+      in (Commit (Just (cid newpc)) hs (hash (Strict.concat hs)),newOS))
+
