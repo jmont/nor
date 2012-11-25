@@ -58,6 +58,15 @@ addCommit s (commitS, os) =
    let (newCommit,newOS) = S.runState s os
    in (Set.insert newCommit commitS,newOS)
 
+commit :: World -> [File] -> World
+commit w _ = w
+{-
+commit w@(core, head) fs = 
+    let fhs = addHashableAs fs
+        fc = createCommit fhs head
+        core' = addCommit fc core
+     in (core', NEWCOMMIT??)
+-}
 data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
