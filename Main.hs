@@ -30,7 +30,7 @@ getWorld = do
 
 getFile :: String -> IO(N.File)
 getFile p = do
-    handle <- openFile p ReadMode
+    handle <- openFile ("./"++p) ReadMode
     contents <- hGetContents handle
     hClose handle
     return $ N.File p (lines contents)
@@ -50,7 +50,5 @@ main = do
     w <- getWorld
     (cmd:args) <- getArgs
     w' <- dispatch w cmd args
-    putStrLn "World:"
-    putStrLn $ show w'
     saveWorld w'
 

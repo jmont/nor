@@ -53,20 +53,17 @@ createCommit s pc =
    S.put os
    return (Commit pid hashes (hash (Strict.concat hashes)))
 
-addCommit :: WithObjects File Commit -> Core -> Core
+addCommit :: WithObjects File Commit -> Core -> (Core, Commit)
 addCommit s (commitS, os) =
    let (newCommit,newOS) = S.runState s os
-   in (Set.insert newCommit commitS,newOS)
+   in ((Set.insert newCommit commitS, newOS), newCommit)
 
 commit :: World -> [File] -> World
-commit w _ = w
-{-
 commit w@(core, head) fs = 
     let fhs = addHashableAs fs
-        fc = createCommit fhs head
-        core' = addCommit fc core
-     in (core', NEWCOMMIT??)
--}
+        fc = createCommit fhs (Just head)
+     in addCommit fc core
+
 data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
