@@ -53,7 +53,7 @@ createCommit s pc =
    S.put os
    return (Commit pid hashes (hash (Strict.concat hashes)))
 
-addCommit :: WithObjects File Commit -> Core -> (Core, Commit)
+addCommit :: WithObjects File Commit -> Core -> World
 addCommit s (commitS, os) =
    let (newCommit,newOS) = S.runState s os
    in ((Set.insert newCommit commitS, newOS), newCommit)
