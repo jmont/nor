@@ -1,5 +1,6 @@
 module Nor where
 import Control.Monad
+import Control.Applicative
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
@@ -21,9 +22,10 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  } deriving (Show)
 
 instance Serialize File where
-    put f = put (path f,contents f)
-    get = getTwoOf (get :: Get String) (get :: Get [String]) >>=
-         (\(p,cont) -> return $ File p cont)
+    put (File p c) = do
+        put p
+        put c
+    get = File <$> get <*> get
 
 type HashEntry = (Hash, File)
 type HashDict = Map.Map Hash File
@@ -64,10 +66,20 @@ instance Ord Commit where
    compare c1 c2 = compare (cid c1) (cid c2)
 instance Eq Commit where
    (==) c1 c2 = (cid c1) == (cid c2)
+instance Serialize Commit where
+    put (Commit pid hs id) = do
+        put pid
+        put hs
+        put id
+    get = Commit <$> get <*> get <*> get
 
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
 type World = (Core, Commit)
+
+instance (Serialize a) => Serialize (ObjectStore a) where
+    put (OS s) = do put s
+    get = OS <$> get
 
 --Demo of how to use WithObjects
 file1 = File "test1" ["hello"]
