@@ -1,59 +1,44 @@
 import System.Environment
 import System.IO
 import Data.List
+import Data.Serialize
+import qualified Data.ByteString as S
+import qualified ObjectStore as O
 import qualified Nor as N
-
-type Universe = (N.HashDict, N.World)
 
 worldPath = "./.nor/world"
 
-{-saveWorld :: N.World -> IO ()
-    saveWorld w = do
+saveWorld :: N.World -> IO ()
+saveWorld w = do
     handle <- openFile worldPath WriteMode
-    hPutStr handle $ show w
+    S.hPutStr handle $ encode w
     hClose handle
--}
 
-currentFiles :: N.World -> [ N.File]
-currentFiles w@(_,hd,_,_) = N.getFiles hd
+getWorld' :: IO (Either String N.World)
+getWorld' = do
+    handle <- openFile worldPath ReadMode
+    encodedW <- S.hGetContents handle
+    hClose handle
+    return $ decode encodedW
 
-addNewFile cfs name = ("hash_"++name, N.File name ["newfile"]):cfs
+getWorld :: IO (N.World)
+getWorld = do
+    eitherW <- getWorld'
+    return $ case eitherW
+               of Left err -> N.init
+                  Right w -> w
 
-dispatch :: Universe -> String -> [String] -> IO (Universe)
+dispatch :: N.World -> String -> [String] -> IO (N.World)
 -- Nor commands
-dispatch u@(cfs, w) "vcf" _ = do
-    putStrLn $ show (currentFiles w)
-    return u
-dispatch (cfs, w) "commit" [] = return (cfs, N.lowCommit w cfs)
--- Editor commands
-dispatch (cfs, w) "new" [name] = return (addNewFile cfs name, w)
-dispatch u@(cfs, _) "cfs" [] = do
-    putStrLn $ show cfs
-    return u
---dispatch u@(cfs, w) "app" [name,txt] = 
---    case N.getRmFile cfs name
---      of Just (f, cfs') -> 
---          (let f' = N.File (N.path f) (N.contents f ++ [txt])
---              in return (N.addHash cfs' ("hash_"++name) f', w))
---         otherwise -> return u   
+-- go here!
 -- Default
-dispatch u _ _ = putStrLn "    ! Invalid Command" >> return u
+dispatch w _ _ = putStrLn "    ! Invalid Command" >> return w
 
 main = do 
-    main' ([], N.init)
-    return ()
+    w <- getWorld
+    (cmd:args) <- getArgs
+    w' <- dispatch w cmd args
+    putStrLn "World:"
+    putStrLn $ show w'
+    saveWorld w'
 
-main' :: Universe -> IO ()
-main' u@(cfs, w) = do
-    putStr "nor $ "
-    hFlush stdout
-    input <- getLine
-    let (cmd:args) = words input
-    if cmd /= "quit"
-    then do 
-        (cfs', w') <- dispatch u cmd args
-        main' (cfs', w')
-    else do
---        saveWorld w
-        return ()
- 
