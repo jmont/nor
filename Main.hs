@@ -1,3 +1,4 @@
+import Control.Monad
 import System.Environment
 import System.IO
 import Data.List
@@ -51,9 +52,10 @@ dispatch w "tree" _ = printCommits w >> return w
 -- Default
 dispatch w _ _ = putStrLn "    ! Invalid Command" >> return w
 
-main = do 
+main = do
     w <- getWorld
-    (cmd:args) <- getArgs
-    w' <- dispatch w cmd args
+    args <- getArgs
+    when (args == []) (getProgName >>= (\pn ->
+        error ("Usage: " ++ pn ++ " <command>")))
+    w' <- dispatch w (head args) (tail args)
     saveWorld w'
-
