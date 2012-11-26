@@ -123,8 +123,8 @@ ancestorList core c1@(Commit (Just pid) _ _) =
 
 --Maybe not a withObjects because it doesn't create any new files?
 --Return a patch from commit a to commit b
-commitsToPatch :: Commit -> Commit -> WithObjects File Patch
-commitsToPatch ca cb = S.state (\os ->
+commitsToPatch :: ObjectStore File -> Commit -> Commit -> Patch
+commitsToPatch os ca cb =
       let hashesA = Set.fromList (hashes ca)
           hashesB = Set.fromList (hashes cb)
           onlyA = hashesA Set.\\ hashesB
@@ -136,9 +136,9 @@ commitsToPatch ca cb = S.state (\os ->
                Map.empty filesOnlyA
           patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
                      aPatchMap filesOnlyB
-          patch = Atomic $ Map.foldWithKey (\path pActions acc ->
+          patch = Atomic $ Map.foldrWithKey (\path pActions acc ->
                      (map (AtPath path) pActions) ++ acc) [] patchMap
-          in (patch,os))
+          in patch
    where getFilesForSet os hashesSet =
           (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
          alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
@@ -153,10 +153,9 @@ applyPatch = error "Not implemented"
 
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
-      let wPatchA = commitsToPatch lca ca
-          wPatchB = commitsToPatch lca cb
-          patchAB = S.evalState (wPatchA >>= (\pa -> wPatchB >>= (\pb ->
-            return $ mergePatches pa pb))) os
+      let patchA = commitsToPatch os lca ca
+          patchB = commitsToPatch os lca cb
+          patchAB = mergePatches patchA patchB
           lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
           newFiles = applyPatch patchAB lcaFiles
           --What happens if some files haven't changed??
