@@ -22,9 +22,7 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  } deriving (Show)
 
 instance Serialize File where
-    put (File p c) = do
-        put p
-        put c
+    put (File p c) = put p >> put c
     get = File <$> get <*> get
 
 type HashEntry = (Hash, File)
@@ -38,14 +36,13 @@ addHashableAs as = foldr1 (>>) (map addHashableA as)
 
 addHashableA :: Serialize a => a -> WithObjects a Hash
 addHashableA a = do
-                 os <- S.get
-                 let (hash,newState) = addObject os a
-                 S.put newState
-                 return hash
+    os <- S.get
+    let (hash,newState) = addObject os a
+    S.put newState
+    return hash
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
-createCommit s pc =
-   do
+createCommit s pc = do
    newState <- S.get
    let (h,os) = S.runState s newState
    let hashes = getHashes os
@@ -59,10 +56,10 @@ addCommit s (commitS, os) =
    in ((Set.insert newCommit commitS, newOS), newCommit)
 
 commit :: World -> [File] -> World
-commit w@(core, head) fs = 
+commit w@(core, head) fs =
     let fhs = addHashableAs fs
         fc = createCommit fhs (Just head)
-     in addCommit fc core
+    in addCommit fc core
 
 data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
@@ -73,10 +70,7 @@ instance Ord Commit where
 instance Eq Commit where
    (==) c1 c2 = (cid c1) == (cid c2)
 instance Serialize Commit where
-    put (Commit pid hs id) = do
-        put pid
-        put hs
-        put id
+    put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
 
 -- list of all commits, hash->file, head commit, commitCount
@@ -84,7 +78,7 @@ type Core = (Set.Set Commit, ObjectStore File)
 type World = (Core, Commit)
 
 instance (Serialize a) => Serialize (ObjectStore a) where
-    put (OS s) = do put s
+    put (OS s) = put s
     get = OS <$> get
 
 --Demo of how to use WithObjects
@@ -125,7 +119,7 @@ ancestorList :: Core -> Commit -> [Commit]
 ancestorList _ c1@(Commit Nothing _ _) = [c1]
 ancestorList core c1@(Commit (Just pid) _ _) =
     let Just p = commitById core pid
-     in c1:(ancestorList core p)
+    in c1:(ancestorList core p)
 
 --Maybe not a withObjects because it doesn't create any new files?
 --Return a patch from commit a to commit b
