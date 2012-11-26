@@ -121,19 +121,21 @@ ancestorList core c1@(Commit (Just pid) _ _) =
     let Just p = commitById core pid
     in c1:(ancestorList core p)
 
---Maybe not a withObjects because it doesn't create any new files?
 --Return a patch from commit a to commit b
-commitsToPatch :: ObjectStore File -> Commit -> Commit -> Patch
-commitsToPatch os ca cb =
+patchFromCommits :: ObjectStore File -> Commit -> Commit -> Patch
+patchFromCommits os ca cb =
       let hashesA = Set.fromList (hashes ca)
           hashesB = Set.fromList (hashes cb)
           onlyA = hashesA Set.\\ hashesB
           onlyB = hashesB Set.\\ hashesA
           filesOnlyA = getFilesForSet os onlyA
           filesOnlyB = getFilesForSet os onlyB
+          --Assume everything in A has been deleted
           aPatchMap = foldr (\f pm -> Map.insert (path f)
                [ChangeHunk 0 (contents f) [], RemoveEmptyFile] pm)
                Map.empty filesOnlyA
+          --Update map, anything not found is new
+          --If exists, then change to only a changehunk
           patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
                      aPatchMap filesOnlyB
           patch = Atomic $ Map.foldrWithKey (\path pActions acc ->
@@ -144,8 +146,8 @@ commitsToPatch os ca cb =
          alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
          alterFun newFile Nothing =
             Just $ [CreateEmptyFile, ChangeHunk 0 [] (contents newFile)]
-         alterFun newFile (Just [(ChangeHunk _ fContents []),_]) =
-            Just $ editsToChangeHunks $ getDiff fContents (contents newFile)
+         alterFun changedFile (Just [(ChangeHunk _ fContents []),_]) =
+            Just $ editsToChangeHunks $ getDiff fContents (contents changedFile)
          alterFun _ _ = error "Can't Happen"
 
 applyPatch :: Patch -> [File] -> [File]
@@ -153,8 +155,9 @@ applyPatch = error "Not implemented"
 
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
-      let patchA = commitsToPatch os lca ca
-          patchB = commitsToPatch os lca cb
+      let patchTo = patchFromCommits os
+          patchA = lca `patchTo` ca
+          patchB = lca `patchTo` cb
           patchAB = mergePatches patchA patchB
           lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
           newFiles = applyPatch patchAB lcaFiles
@@ -163,4 +166,3 @@ mergeC ca cb lca newpc = S.state (\os ->
                   let (h,os') = addObject os f
                   in (h:hs,os')) ([],os) newFiles
       in (Commit (Just (cid newpc)) hs (hash (Strict.concat hs)),newOS))
-
