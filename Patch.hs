@@ -41,7 +41,7 @@ editsToChangeHunks es = eTCH es 0
                 ch = ChangeHunk (lineNum + length keeps) deletes adds
              in if (length adds + length deletes) == 0
                 then []
-                else ch : eTCH rest'' (offset ch + length adds - length deletes)
+                else ch : eTCH rest'' (offset ch)
 
-mergePatches :: Patch -> Patch -> Patch
-mergePatches p1 p2 = error "Not written yet"
+mergeParallelPatches :: Patch -> Patch -> Patch
+mergeParallelPatches p1 p2 = error "Not written yet"
