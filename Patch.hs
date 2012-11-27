@@ -1,5 +1,6 @@
 module Patch where
 import Data.Algorithm.Diff
+import Data.List
 
 type Edit = (DI,String)
 type Path = String
@@ -42,6 +43,31 @@ editsToChangeHunks es = eTCH es 0
              in if (length adds + length deletes) == 0
                 then []
                 else ch : eTCH rest'' (offset ch)
+
+--This is ugly and needs work
+--ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
+sequenceParallelPatches :: Patch -> Patch
+sequenceParallelPatches p@(AtPath _ _) = p
+sequenceParallelPatches (Atomic ps) =
+         let ps' = flattenPatches ps
+             rems = filter eqRemEFile ps'
+             cres = filter eqCreEFile ps'
+             chs  = filter (\p -> not (or [(eqRemEFile p),(eqCreEFile p)])) ps
+         in  Atomic (cres ++ sortBy sortChs chs ++ rems)
+   where flattenPatches :: [Patch] -> [Patch]
+         flattenPatches [] = []
+         flattenPatches ((Atomic ps):ps') = ps ++ flattenPatches ps'
+         flattenPatches (p:ps') = p : flattenPatches ps'
+         eqRemEFile (AtPath _ RemoveEmptyFile) = True
+         eqRemEFile _ = False
+         eqCreEFile (AtPath _ CreateEmptyFile) = True
+         eqCreEFile _ = False
+         sortChs :: Patch -> Patch -> Ordering
+         sortChs (AtPath p1 (ChangeHunk o1 _ _)) (AtPath p2 (ChangeHunk o2 _ _)) =
+            case compare p1 p2 of
+               EQ -> compare o1 o2
+               otherwise  -> otherwise
+         sortChs _ _ = error "This can't happen"
 
 mergeParallelPatches :: Patch -> Patch -> Patch
 mergeParallelPatches p1 p2 = error "Not written yet"
