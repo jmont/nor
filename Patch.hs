@@ -35,13 +35,13 @@ editsToChangeHunks es = eTCH es 0
          neqF = ((/=) F . fst)
          eTCH es lineNum =
             let (keeps, rest) = span eqB es
-                (changes, rest'') = span neqB rest
-                deletes = map snd (filter eqF changes)
+                (changes, rest') = span neqB rest
+                dels = map snd (filter eqF changes)
                 adds = map snd (filter neqF changes)
-                ch = ChangeHunk (lineNum + length keeps) deletes adds
-             in if (length adds + length deletes) == 0
-                then []
-                else ch : eTCH rest'' (offset ch)
+                ch = ChangeHunk (lineNum + length keeps) dels adds
+             in if (length adds + length dels) == 0
+                 then []
+                 else ch : eTCH rest' (offset ch + length dels)
 
 mergeParallelPatches :: Patch -> Patch -> Patch
 mergeParallelPatches p1 p2 = error "Not written yet"
