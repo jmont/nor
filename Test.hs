@@ -3,6 +3,7 @@ import Nor
 import ObjectStore
 import qualified Data.Set as Set
 import Data.Algorithm.Diff
+import Patch
 
 --Diff Stuff
 a0 = ["a"]
@@ -39,6 +40,21 @@ g2 = ["bob","matt","hello","me"]
 --hey bob hello me
 dg01 = getDiff g0 g1
 dg02 = getDiff g0 g2
+
+h0 = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+h1 = ["A","b","C","d","E","f","G","h","I","j","K","l","M","n","O","p","Q","r","S","t","U","v","W","x","Y","z"]
+h2 = ["a","B","c","D","e","F","g","H","i","J","k","L","m","N","o","P","q","R","s","T","u","V","w","X","y","Z"]
+--ABCDEFGHIJKLMNOPQRSTUVWXYZ
+dh01 = getDiff h0 h1
+dh02 = getDiff h0 h2
+
+i0 = ["a","b","c","d","e"]
+i1 = ["a","b","b2","c","d","d2","e"]
+i2 = ["a","c","e"]
+i3 = ["b","d"]
+di01 = getDiff i0 i1
+di02 = getDiff i0 i2
+di03 = getDiff i0 i3
 
 ------------------------------------------------------------------------------
 --Demo of how to use WithObjects
