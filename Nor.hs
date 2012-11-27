@@ -150,8 +150,24 @@ patchFromCommits os ca cb =
             Just $ editsToChangeHunks $ getDiff fContents (contents changedFile)
          alterFun _ _ = error "Can't Happen"
 
+--Assumes SEQUENTIAL PATCH
 applyPatch :: Patch -> [File] -> [File]
-applyPatch = error "Not implemented"
+applyPatch (AtPath ppath CreateEmptyFile) fs = File ppath [""]:fs
+applyPatch (AtPath ppath RemoveEmptyFile) [] = [] --Maybe error?
+--Should we check if empty file?
+applyPatch p@(AtPath ppath RemoveEmptyFile) (f:fs) =
+   if ppath == path f then fs else f : applyPatch p fs
+applyPatch p@(AtPath ppath (ChangeHunk o dels adds)) [] = [] --error?
+applyPatch p@(AtPath ppath (ChangeHunk o dels adds)) (f:fs) =
+   if ppath == path f
+   then let preHunk = take o (contents f)
+            rest = drop o (contents f)
+            --Check if lines present?
+            newcont = preHunk ++ adds ++ drop (length dels) rest
+            in File (path f) newcont : fs
+            else f : applyPatch p fs
+applyPatch (Atomic []) fs = fs
+applyPatch (Atomic (p:ps)) fs = applyPatch (Atomic ps) (applyPatch p fs)
 
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
