@@ -81,19 +81,6 @@ instance (Serialize a) => Serialize (ObjectStore a) where
     put (OS s) = put s
     get = OS <$> get
 
---Demo of how to use WithObjects
-file1 = File "test1" ["hello"]
-file2 = File "test2" ["bye"]
-core = (Set.empty, mkEmptyOS)
-withF1 = addHashableA file1
-withF2 = addHashableA file2
-withF12 = withF1 >> withF2
-withF12' = addHashableAs [file1,file2]
-withC = createCommit withF12 Nothing
-withC' = createCommit withF12' Nothing
-core'  = addCommit withC core
-core'' = addCommit withC' core
-
 -- An empty world
 init :: World
 init = let initC = Commit Nothing [] (hash (encode ""))

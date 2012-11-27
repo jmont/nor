@@ -2,7 +2,7 @@ module Patch where
 import Data.Algorithm.Diff
 import Data.List
 
-type Edit = (DI,String)
+type Edit t = (DI, t)
 type Path = String
 
 data Patch = AtPath Path PatchAction
@@ -15,7 +15,7 @@ data PatchAction = RemoveEmptyFile
                               , new :: [String] -- list of new lines
                               } deriving (Show)
 
-applyEdits :: [Edit] -> [String] -> Maybe [String]
+applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
 applyEdits es strs = sequence (aE es strs)
    where aE ((B,str1):es) (str2:strs) =
             if (str1==str2) then Just str2 : aE es strs else [Nothing]
@@ -25,10 +25,10 @@ applyEdits es strs = sequence (aE es strs)
          aE [] [] = []
          aE _  [] = [Nothing]
 
-editsToPatch :: [Edit] -> Path -> Patch
+editsToPatch :: [Edit String] -> Path -> Patch
 editsToPatch es p = Atomic $ map (AtPath p) (editsToChangeHunks es)
 
-editsToChangeHunks :: [Edit] -> [PatchAction]
+editsToChangeHunks :: [Edit String] -> [PatchAction]
 editsToChangeHunks es = eTCH es 0
    where eqB = ((==) B . fst)
          neqB = ((/=) B . fst)
@@ -36,13 +36,13 @@ editsToChangeHunks es = eTCH es 0
          neqF = ((/=) F . fst)
          eTCH es lineNum =
             let (keeps, rest) = span eqB es
-                (changes, rest'') = span neqB rest
-                deletes = map snd (filter eqF changes)
+                (changes, rest') = span neqB rest
+                dels = map snd (filter eqF changes)
                 adds = map snd (filter neqF changes)
-                ch = ChangeHunk (lineNum + length keeps) deletes adds
-             in if (length adds + length deletes) == 0
-                then []
-                else ch : eTCH rest'' (offset ch)
+                ch = ChangeHunk (lineNum + length keeps) dels adds
+             in if (length adds + length dels) == 0
+                 then []
+                 else ch : eTCH rest' (offset ch + length dels)
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
