@@ -1,7 +1,7 @@
 module Patch where
 import Data.Algorithm.Diff
 
-type Edit = (DI,String)
+type Edit t = (DI, t)
 type Path = String
 
 data Patch = AtPath Path PatchAction
@@ -14,7 +14,7 @@ data PatchAction = RemoveEmptyFile
                               , new :: [String] -- list of new lines
                               } deriving (Show)
 
-applyEdits :: [Edit] -> [String] -> Maybe [String]
+applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
 applyEdits es strs = sequence (aE es strs)
    where aE ((B,str1):es) (str2:strs) =
             if (str1==str2) then Just str2 : aE es strs else [Nothing]
@@ -24,10 +24,10 @@ applyEdits es strs = sequence (aE es strs)
          aE [] [] = []
          aE _  [] = [Nothing]
 
-editsToPatch :: [Edit] -> Path -> Patch
+editsToPatch :: [Edit String] -> Path -> Patch
 editsToPatch es p = Atomic $ map (AtPath p) (editsToChangeHunks es)
 
-editsToChangeHunks :: [Edit] -> [PatchAction]
+editsToChangeHunks :: [Edit String] -> [PatchAction]
 editsToChangeHunks es = eTCH es 0
    where eqB = ((==) B . fst)
          neqB = ((/=) B . fst)
