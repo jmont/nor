@@ -65,7 +65,7 @@ sequenceParallelPatches (Atomic ps) =
          sortChs :: Patch -> Patch -> Ordering
          sortChs (AtPath p1 (ChangeHunk o1 _ _)) (AtPath p2 (ChangeHunk o2 _ _)) =
             case compare p1 p2 of
-               EQ -> compare o1 o2
+               EQ -> compare o2 o1 --Sort acesending
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
