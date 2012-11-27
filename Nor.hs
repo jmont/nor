@@ -48,7 +48,7 @@ createCommit s pc = do
    let hashes = getHashes os
    let pid = (pc >>= (\x -> return (cid x)))
    S.put os
-   return (Commit pid hashes (hash (Strict.concat hashes)))
+   return $ Commit pid hashes $ mkCommitHash hashes
 
 addCommit :: WithObjects File Commit -> Core -> World
 addCommit s (commitS, os) =
@@ -60,6 +60,9 @@ commit w@(core, head) fs =
     let fhs = addHashableAs fs
         fc = createCommit fhs (Just head)
     in addCommit fc core
+
+mkCommitHash :: [Hash] -> Hash
+mkCommitHash = Hash . hash . Strict.concat . (map getHash)
 
 data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
@@ -83,7 +86,7 @@ instance (Serialize a) => Serialize (ObjectStore a) where
 
 -- An empty world
 init :: World
-init = let initC = Commit Nothing [] (hash (encode ""))
+init = let initC = Commit Nothing [] $ Hash (hash (encode ""))
        in ((Set.singleton initC, mkEmptyOS),initC)
 
 commitById :: Core -> Hash -> Maybe Commit
@@ -168,4 +171,5 @@ mergeC ca cb lca newpc = S.state (\os ->
           (hs,newOS) = foldr (\f (hs,os) ->
                   let (h,os') = addObject os f
                   in (h:hs,os')) ([],os) newFiles
-      in (Commit (Just (cid newpc)) hs (hash (Strict.concat hs)),newOS))
+       in (Commit (Just (cid newpc)) hs (mkCommitHash hs), newOS))
+
