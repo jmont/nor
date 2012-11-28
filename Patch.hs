@@ -74,14 +74,16 @@ flattenPatches [] = []
 flattenPatches ((Atomic ps):ps') = ps ++ flattenPatches ps'
 flattenPatches (p:ps') = p : flattenPatches ps'
 
---mergeParallelPatches :: [Patch] -> [Patch] -> (Patch)
---mergeParallelPatches (Atomic (p1s)) (Atomic (p2s)) = 
---   let (p1',p2') = (flattenPatches p1s,flattenPatches p2s)
---       potentialConfs = groupBy groupFun (p1' ++ p2')
---        
---   where groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
---         groupFun _ _ = False
-
+mergeParallelPatches :: Patch -> Patch -> (Patch, [Conflict [Patch]])
+mergeParallelPatches (Atomic p1s) (Atomic p2s) = 
+   let  = groupBy groupFun p1s
+        
+   where confPAtoConfP :: Conflict [PatchAction] -> Path -> Conflict Patch
+         confPAtoConfP (Conflict pa1s pa2s) p =
+            Conflict (Atomic (map (AtPath p) pa1s)) 
+                     (Atomic (map (AtPath p) pa2s))
+         groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
+         groupFun _ _ = False
 
 cmpHunk :: PatchAction -> PatchAction -> OrdHunk
 cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
