@@ -6,12 +6,17 @@ type Edit t = (DI, t)
 type Path = String
 
 data Patch = Patch Path PatchAction deriving (Show)
+
+data Conflict t = Conflict t t
+
+data OrdHunk = Conf | Before | After
+
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
                  | ChangeHunk { offset :: Int -- Starting Line Number
                               , old :: [String] -- List of old lines
                               , new :: [String] -- list of new lines
-                              } deriving (Show)
+                              } deriving (Show, Eq)
 
 applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
 applyEdits es strs = sequence (aE es strs)
@@ -57,12 +62,68 @@ sequenceParallelPatches ps =
          eqRemEFile _ = False
          eqCreEFile (Patch _ CreateEmptyFile) = True
          eqCreEFile _ = False
-         sortChs :: Patch -> Patch -> Ordering
-         sortChs (Patch p1 (ChangeHunk o1 _ _)) (Patch p2 (ChangeHunk o2 _ _)) =
+         sortCh :: Patch -> Patch -> Ordering
+         sortCh (Patch p1 (ChangeHunk o1 _ _)) (Patch p2 (ChangeHunk o2 _ _)) =
             case compare p1 p2 of
                EQ -> compare o2 o1 --Sort acesending
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
-mergeParallelPatches :: [Patch] -> [Patch] -> [Patch]
-mergeParallelPatches p1 p2 = error "Not written yet"
+flattenPatches :: [Patch] -> [Patch]
+flattenPatches [] = []
+flattenPatches ((Atomic ps):ps') = ps ++ flattenPatches ps'
+flattenPatches (p:ps') = p : flattenPatches ps'
+
+--mergeParallelPatches :: [Patch] -> [Patch] -> (Patch)
+--mergeParallelPatches (Atomic (p1s)) (Atomic (p2s)) = 
+--   let (p1',p2') = (flattenPatches p1s,flattenPatches p2s)
+--       potentialConfs = groupBy groupFun (p1' ++ p2')
+--        
+--   where groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
+--         groupFun _ _ = False
+
+
+cmpHunk :: PatchAction -> PatchAction -> OrdHunk
+cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
+   case compare o1 o2 of
+      EQ -> Conf
+      LT -> if o1 + length d1s > o2 then Conf else Before
+      GT -> if o2 + length d2s > o1 then Conf else After
+cmpHunk _ _ = error "Compare Hunk applied to non Change Hunks"
+
+conflicts :: PatchAction -> PatchAction -> Bool
+conflicts p1 p2 = case cmpHunk p1 p2 of 
+      Conf -> True
+      _ -> False
+
+findConflictsPA :: [PatchAction] -> [PatchAction] -> 
+                   ([PatchAction],[Conflict [PatchAction]])
+findConflictsPA pas [] = (pas,[])
+findConflictsPA [] pbs = (pbs,[])
+findConflictsPA pas pbs =
+   let aHasRem = any (== RemoveEmptyFile) pas 
+       bHasRem = any (== RemoveEmptyFile) pbs
+       aHasCre = any (== CreateEmptyFile) pas
+       bHasCre = any (== CreateEmptyFile) pbs
+       (chNoConf,chConfs) = confCHs (filter isCH pas) (filter isCH pbs)
+   in case (aHasRem,bHasRem) of
+      (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
+      (True,False) -> if any hasNew pbs 
+                      then ([],[Conflict pas pbs])
+                      else (pas ++ pbs,[])
+      (False,True) -> findConflictsPA pbs pas
+      (False,False) -> if or [aHasCre,bHasCre] 
+                       then (CreateEmptyFile : chNoConf,chConfs)
+                       else (chNoConf,chConfs)
+   where isCH (ChangeHunk _ _ _) = True
+         isCH _ = False
+         hasNew (ChangeHunk off olds news) = length news > 0
+         hasNew _ = False
+         confCHs :: [PatchAction] -> [PatchAction] -> 
+                    ([PatchAction],[Conflict [PatchAction]])
+         confCHs [] c2s = (c2s,[])
+         confCHs (c1:c1s) c2s =
+            let confs = filter (conflicts c1) c2s
+                (noConfs,allConfs) = confCHs c1s c2s
+            in if null confs then (c1:noConfs, allConfs)
+                             else (noConfs, Conflict [c1] confs : allConfs)
