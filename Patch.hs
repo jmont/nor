@@ -69,21 +69,17 @@ sequenceParallelPatches ps =
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
-flattenPatches :: [Patch] -> [Patch]
-flattenPatches [] = []
-flattenPatches ((Atomic ps):ps') = ps ++ flattenPatches ps'
-flattenPatches (p:ps') = p : flattenPatches ps'
-
-mergeParallelPatches :: Patch -> Patch -> (Patch, [Conflict [Patch]])
-mergeParallelPatches (Atomic p1s) (Atomic p2s) = 
-   let  = groupBy groupFun p1s
-        
-   where confPAtoConfP :: Conflict [PatchAction] -> Path -> Conflict Patch
-         confPAtoConfP (Conflict pa1s pa2s) p =
-            Conflict (Atomic (map (AtPath p) pa1s)) 
-                     (Atomic (map (AtPath p) pa2s))
-         groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
-         groupFun _ _ = False
+mergeParallelPatches :: [Patch] -> [Patch] -> [Patch]
+mergeParallelPatches p1s p2s = error "ur"
+--mergeParallelPatches :: [Patch] -> [Patch] -> (Patch, [Conflict [Patch]])
+  -- let  = groupBy groupFun p1s
+  --
+  -- where confPAtoConfP :: Conflict [PatchAction] -> Path -> Conflict Patch
+  --       confPAtoConfP (Conflict pa1s pa2s) p =
+  --          Conflict (Atomic (map (AtPath p) pa1s))
+  --                   (Atomic (map (AtPath p) pa2s))
+  --       groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
+  --       groupFun _ _ = False
 
 cmpHunk :: PatchAction -> PatchAction -> OrdHunk
 cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
@@ -94,34 +90,34 @@ cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
 cmpHunk _ _ = error "Compare Hunk applied to non Change Hunks"
 
 conflicts :: PatchAction -> PatchAction -> Bool
-conflicts p1 p2 = case cmpHunk p1 p2 of 
+conflicts p1 p2 = case cmpHunk p1 p2 of
       Conf -> True
       _ -> False
 
-findConflictsPA :: [PatchAction] -> [PatchAction] -> 
+findConflictsPA :: [PatchAction] -> [PatchAction] ->
                    ([PatchAction],[Conflict [PatchAction]])
 findConflictsPA pas [] = (pas,[])
 findConflictsPA [] pbs = (pbs,[])
 findConflictsPA pas pbs =
-   let aHasRem = any (== RemoveEmptyFile) pas 
+   let aHasRem = any (== RemoveEmptyFile) pas
        bHasRem = any (== RemoveEmptyFile) pbs
        aHasCre = any (== CreateEmptyFile) pas
        bHasCre = any (== CreateEmptyFile) pbs
        (chNoConf,chConfs) = confCHs (filter isCH pas) (filter isCH pbs)
    in case (aHasRem,bHasRem) of
       (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
-      (True,False) -> if any hasNew pbs 
+      (True,False) -> if any hasNew pbs
                       then ([],[Conflict pas pbs])
                       else (pas ++ pbs,[])
       (False,True) -> findConflictsPA pbs pas
-      (False,False) -> if or [aHasCre,bHasCre] 
+      (False,False) -> if or [aHasCre,bHasCre]
                        then (CreateEmptyFile : chNoConf,chConfs)
                        else (chNoConf,chConfs)
    where isCH (ChangeHunk _ _ _) = True
          isCH _ = False
          hasNew (ChangeHunk off olds news) = length news > 0
          hasNew _ = False
-         confCHs :: [PatchAction] -> [PatchAction] -> 
+         confCHs :: [PatchAction] -> [PatchAction] ->
                     ([PatchAction],[Conflict [PatchAction]])
          confCHs [] c2s = (c2s,[])
          confCHs (c1:c1s) c2s =
