@@ -45,7 +45,8 @@ editsToChangeHunks es = eTCH es 0
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
 sequenceParallelPatches :: [Patch] -> [Patch]
-sequenceParallelPatches (p:[]) = [p]
+sequenceParallelPatches [] = []
+sequenceParallelPatches [p] = [p]
 sequenceParallelPatches ps =
          let rems = filter eqRemEFile ps
              cres = filter eqCreEFile ps
