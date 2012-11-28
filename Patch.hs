@@ -5,7 +5,7 @@ import Data.List
 type Edit t = (DI, t)
 type Path = String
 
-data Patch = AtPath Path PatchAction deriving (Show)
+data Patch = Patch Path PatchAction deriving (Show)
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
                  | ChangeHunk { offset :: Int -- Starting Line Number
@@ -24,7 +24,7 @@ applyEdits es strs = sequence (aE es strs)
          aE _  [] = [Nothing]
 
 editsToPatch :: [Edit String] -> Path -> [Patch]
-editsToPatch es p = map (AtPath p) (editsToChangeHunks es)
+editsToPatch es p = map (Patch p) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [PatchAction]
 editsToChangeHunks es = eTCH es 0
@@ -52,12 +52,12 @@ sequenceParallelPatches ps =
              chs  = filter (\p -> not (or [(eqRemEFile p),(eqCreEFile p)])) ps
          in cres ++ sortBy sortChs chs ++ rems
          where
-         eqRemEFile (AtPath _ RemoveEmptyFile) = True
+         eqRemEFile (Patch _ RemoveEmptyFile) = True
          eqRemEFile _ = False
-         eqCreEFile (AtPath _ CreateEmptyFile) = True
+         eqCreEFile (Patch _ CreateEmptyFile) = True
          eqCreEFile _ = False
          sortChs :: Patch -> Patch -> Ordering
-         sortChs (AtPath p1 (ChangeHunk o1 _ _)) (AtPath p2 (ChangeHunk o2 _ _)) =
+         sortChs (Patch p1 (ChangeHunk o1 _ _)) (Patch p2 (ChangeHunk o2 _ _)) =
             case compare p1 p2 of
                EQ -> compare o2 o1 --Sort acesending
                otherwise  -> otherwise
