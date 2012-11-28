@@ -138,23 +138,24 @@ patchFromCommits os ca cb =
          alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH
-applyPatch :: [Patch] -> [File] -> [File]
-applyPatch ((Patch ppath CreateEmptyFile):[]) fs = File ppath [""]:fs
-applyPatch ((Patch _ RemoveEmptyFile):[]) [] = [] --Maybe error?
+applyPatch :: Patch -> [File] -> [File]
+applyPatch (Patch ppath CreateEmptyFile) fs = File ppath [""]:fs
+applyPatch (Patch _ RemoveEmptyFile) [] = [] --Maybe error?
 --Should we check if empty file?
-applyPatch (p@(Patch ppath RemoveEmptyFile):[]) (f:fs) =
-   if ppath == path f then fs else f:applyPatch [p] fs
-applyPatch (p@(Patch ppath (ChangeHunk o dels adds)):[]) [] = [] --error?
-applyPatch (p@(Patch ppath (ChangeHunk o dels adds)):[]) (f:fs) =
+applyPatch p@(Patch ppath RemoveEmptyFile) (f:fs) =
+   if ppath == path f then fs else f:applyPatch p fs
+applyPatch p@(Patch ppath (ChangeHunk o dels adds)) [] = [] --error?
+applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
    if ppath == path f
    then let preHunk = take o (contents f)
             rest = drop o (contents f)
             --Check if lines present?
             newcont = preHunk ++ adds ++ drop (length dels) rest
             in File (path f) newcont:fs
-            else f:applyPatch [p] fs
-applyPatch [] fs = fs
-applyPatch (p:ps) fs = applyPatch ps (applyPatch [p] fs)
+            else f:applyPatch p fs
+
+applyPatches :: [Patch] -> [File] -> [File]
+applyPatches ps fs = foldr applyPatch fs ps
 
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
@@ -163,7 +164,7 @@ mergeC ca cb lca newpc = S.state (\os ->
           patchB = lca `patchTo` cb
           patchAB = mergeParallelPatches patchA patchB
           lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
-          newFiles = applyPatch patchAB lcaFiles
+          newFiles = applyPatches patchAB lcaFiles
           --What happens if some files haven't changed??
           (hs,newOS) = foldr (\f (hs,os) ->
                   let (h,os') = addObject os f
