@@ -5,9 +5,7 @@ import Data.List
 type Edit t = (DI, t)
 type Path = String
 
-data Patch = AtPath Path PatchAction
-           | Atomic [Patch] deriving (Show)
-
+data Patch = AtPath Path PatchAction deriving (Show)
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
                  | ChangeHunk { offset :: Int -- Starting Line Number
@@ -25,8 +23,8 @@ applyEdits es strs = sequence (aE es strs)
          aE [] [] = []
          aE _  [] = [Nothing]
 
-editsToPatch :: [Edit String] -> Path -> Patch
-editsToPatch es p = Atomic $ map (AtPath p) (editsToChangeHunks es)
+editsToPatch :: [Edit String] -> Path -> [Patch]
+editsToPatch es p = map (AtPath p) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [PatchAction]
 editsToChangeHunks es = eTCH es 0
@@ -46,18 +44,14 @@ editsToChangeHunks es = eTCH es 0
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
-sequenceParallelPatches :: Patch -> Patch
-sequenceParallelPatches p@(AtPath _ _) = p
-sequenceParallelPatches (Atomic ps) =
-         let ps' = flattenPatches ps
-             rems = filter eqRemEFile ps'
-             cres = filter eqCreEFile ps'
+sequenceParallelPatches :: [Patch] -> [Patch]
+sequenceParallelPatches (p:[]) = [p]
+sequenceParallelPatches ps =
+         let rems = filter eqRemEFile ps
+             cres = filter eqCreEFile ps
              chs  = filter (\p -> not (or [(eqRemEFile p),(eqCreEFile p)])) ps
-         in  Atomic (cres ++ sortBy sortChs chs ++ rems)
-   where flattenPatches :: [Patch] -> [Patch]
-         flattenPatches [] = []
-         flattenPatches ((Atomic ps):ps') = ps ++ flattenPatches ps'
-         flattenPatches (p:ps') = p : flattenPatches ps'
+         in cres ++ sortBy sortChs chs ++ rems
+         where
          eqRemEFile (AtPath _ RemoveEmptyFile) = True
          eqRemEFile _ = False
          eqCreEFile (AtPath _ CreateEmptyFile) = True
@@ -69,5 +63,5 @@ sequenceParallelPatches (Atomic ps) =
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
-mergeParallelPatches :: Patch -> Patch -> Patch
+mergeParallelPatches :: [Patch] -> [Patch] -> [Patch]
 mergeParallelPatches p1 p2 = error "Not written yet"

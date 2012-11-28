@@ -109,7 +109,7 @@ ancestorList core c1@(Commit (Just pid) _ _) =
     in c1:(ancestorList core p)
 
 --Return a patch from commit a to commit b
-patchFromCommits :: ObjectStore File -> Commit -> Commit -> Patch
+patchFromCommits :: ObjectStore File -> Commit -> Commit -> [Patch]
 patchFromCommits os ca cb =
       let hashesA = Set.fromList (hashes ca)
           hashesB = Set.fromList (hashes cb)
@@ -125,8 +125,8 @@ patchFromCommits os ca cb =
           --If exists, then change to only a changehunk
           patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
                      aPatchMap filesOnlyB
-          patch = Atomic $ Map.foldrWithKey (\path pActions acc ->
-                     (map (AtPath path) pActions) ++ acc) [] patchMap
+          patch = Map.foldrWithKey (\path pActions acc ->
+                  (map (AtPath path) pActions) ++ acc) [] patchMap
           in patch
    where getFilesForSet os hashesSet =
           (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
@@ -138,23 +138,23 @@ patchFromCommits os ca cb =
          alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH
-applyPatch :: Patch -> [File] -> [File]
-applyPatch (AtPath ppath CreateEmptyFile) fs = File ppath [""]:fs
-applyPatch (AtPath ppath RemoveEmptyFile) [] = [] --Maybe error?
+applyPatch :: [Patch] -> [File] -> [File]
+applyPatch ((AtPath ppath CreateEmptyFile):[]) fs = File ppath [""]:fs
+applyPatch ((AtPath ppath RemoveEmptyFile):[]) [] = [] --Maybe error?
 --Should we check if empty file?
-applyPatch p@(AtPath ppath RemoveEmptyFile) (f:fs) =
-   if ppath == path f then fs else f : applyPatch p fs
-applyPatch p@(AtPath ppath (ChangeHunk o dels adds)) [] = [] --error?
-applyPatch p@(AtPath ppath (ChangeHunk o dels adds)) (f:fs) =
+applyPatch (p@(AtPath ppath RemoveEmptyFile):[]) (f:fs) =
+   if ppath == path f then fs else f:applyPatch [p] fs
+applyPatch (p@(AtPath ppath (ChangeHunk o dels adds)):[]) [] = [] --error?
+applyPatch (p@(AtPath ppath (ChangeHunk o dels adds)):[]) (f:fs) =
    if ppath == path f
    then let preHunk = take o (contents f)
             rest = drop o (contents f)
             --Check if lines present?
             newcont = preHunk ++ adds ++ drop (length dels) rest
-            in File (path f) newcont : fs
-            else f : applyPatch p fs
-applyPatch (Atomic []) fs = fs
-applyPatch (Atomic (p:ps)) fs = applyPatch (Atomic ps) (applyPatch p fs)
+            in File (path f) newcont:fs
+            else f:applyPatch [p] fs
+applyPatch [] fs = fs
+applyPatch (p:ps) fs = applyPatch ps (applyPatch [p] fs)
 
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
