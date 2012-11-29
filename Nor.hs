@@ -43,12 +43,13 @@ addHashableA a = do
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
 createCommit s pc = do
+   let (h,commitOS) = S.runState s mkEmptyOS
+   let hashes = getHashes commitOS
    newState <- S.get
-   let (h,os) = S.runState s newState
-   let hashes = getHashes os
-   let pid = (pc >>= (\x -> return (cid x)))
+   let (_,os) = S.runState s newState
+   let pcid = (pc >>= (\x -> return (cid x)))
    S.put os
-   return $ Commit pid hashes $ mkCommitHash hashes
+   return $ Commit pcid hashes $ mkCommitHash hashes
 
 addCommit :: WithObjects File Commit -> Core -> World
 addCommit s (commitS, os) =
