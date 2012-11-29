@@ -1,15 +1,18 @@
 module Patch where
 import Data.Algorithm.Diff
+import qualified Data.Map as Map
 import Data.List
 
 type Edit t = (DI, t)
 type Path = String
 
-data Patch = Patch Path PatchAction deriving (Show)
+data Patch = Patch { ppath :: Path
+                   , patchAction :: PatchAction 
+                   } deriving (Show)
 
 data Conflict t = Conflict t t
 
-data OrdHunk = Conf | Before | After
+data OrdHunk = Conf | Before | After deriving (Eq)
 
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
@@ -69,17 +72,37 @@ sequenceParallelPatches ps =
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
-mergeParallelPatches :: [Patch] -> [Patch] -> [Patch]
-mergeParallelPatches p1s p2s = error "ur"
---mergeParallelPatches :: [Patch] -> [Patch] -> (Patch, [Conflict [Patch]])
-  -- let  = groupBy groupFun p1s
-  --
-  -- where confPAtoConfP :: Conflict [PatchAction] -> Path -> Conflict Patch
-  --       confPAtoConfP (Conflict pa1s pa2s) p =
-  --          Conflict (Atomic (map (AtPath p) pa1s))
-  --                   (Atomic (map (AtPath p) pa2s))
-  --       groupFun (AtPath p1 _) (AtPath p2 _) = p1 == p2
-  --       groupFun _ _ = False
+mergeParallelPatches :: [Patch] -> [Patch] -> ([Patch], [Conflict [Patch]])
+mergeParallelPatches p1s p2s = 
+      --Map Path [PatchAction]
+  let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps)) 
+                              (map patchAction ps) m)
+                              Map.empty (groupBy groupPatch p1s)
+      pathAct2ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
+                              (map patchAction ps) m)
+                              Map.empty (groupBy groupPatch p2s)
+      --Map Path ([Patch],[Conflict [Patch]])
+      possConfsByPath = Map.intersectionWithKey
+                        (\path pa1s pa2s ->
+                           let (noConfs,confs) = findConflictsPA pa1s pa2s
+                               noConfPatches = map (Patch path) noConfs
+                               confPatches = map (confPAtoConfP path) confs
+                           in (noConfPatches,confPatches))
+                        pathAct1ByPath pathAct2ByPath
+      only1s = Map.difference pathAct1ByPath pathAct2ByPath
+      only2s = Map.difference pathAct2ByPath pathAct1ByPath
+      noConfsP1 = Map.foldrWithKey (\path pas patches -> 
+                                    map (Patch path) pas ++ patches) [] only1s
+      noConfsP2 = Map.foldrWithKey (\path pas patches -> 
+                                    map (Patch path) pas ++ patches) [] only1s
+      result = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) -> 
+                          (noConfs ++ allNoConfs,confs ++ allConfs)) 
+                         (noConfsP1 ++ noConfsP2,[]) possConfsByPath
+      in result
+  where confPAtoConfP :: Path -> Conflict [PatchAction] -> Conflict [Patch]
+        confPAtoConfP p (Conflict pa1s pa2s) =
+           Conflict (map (Patch p) pa1s) (map (Patch p) pa2s)
+        groupPatch p1 p2  = (ppath p1) == (ppath p2)
 
 cmpHunk :: PatchAction -> PatchAction -> OrdHunk
 cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
@@ -90,9 +113,7 @@ cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
 cmpHunk _ _ = error "Compare Hunk applied to non Change Hunks"
 
 conflicts :: PatchAction -> PatchAction -> Bool
-conflicts p1 p2 = case cmpHunk p1 p2 of
-      Conf -> True
-      _ -> False
+conflicts p1 p2 = cmpHunk p1 p2 == Conf 
 
 findConflictsPA :: [PatchAction] -> [PatchAction] ->
                    ([PatchAction],[Conflict [PatchAction]])
