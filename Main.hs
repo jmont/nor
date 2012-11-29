@@ -4,9 +4,11 @@ import System.Directory
 import System.IO
 import Data.List
 import Data.Serialize
+import Numeric
 import qualified Control.Exception as E
 import qualified Data.Set as Set
 import qualified Data.ByteString as S
+import Data.Serialize
 import qualified ObjectStore as O
 import qualified Nor as N
 
@@ -50,14 +52,59 @@ commit w names = do
     return $ N.commit w fs
 
 printCommits :: N.World -> IO ()
-printCommits ((commits, _) , _) = do
+printCommits ((commits, _) , hc) = do
+    putStrLn $ "HEAD: " ++ (show (N.cid hc))
     mapM (putStrLn.show) (Set.toList commits)
     return ()
+
+--check if file exists
+deleteFile (N.File p _) = do
+    fileExists <- doesFileExist p
+    when fileExists $ removeFile p
+
+deleteFiles :: [N.File] -> IO ()
+deleteFiles fs = do 
+    mapM deleteFile fs 
+    return ()
+
+--create file if it doesnt exsit....
+restoreFile (N.File p cs) = do
+    handle <- openFile p WriteMode
+    hPutStr handle $ unlines cs
+    hClose handle
+
+restoreFiles :: [N.File] -> IO ()
+restoreFiles fs = do 
+    mapM restoreFile fs
+    return ()
+
+checkout :: N.World -> [String] -> IO (N.World)
+checkout w@((comSet, os), headCom) [hh] = do
+    let h = O.hexToHash hh
+    let com = head $ Set.toList $ Set.filter ((h==).N.cid) comSet
+    let files = map (O.getObject os) (N.hashes com)
+    let Just dFiles = sequence $ map (O.getObject os) (N.hashes headCom)
+    let Just rFiles =  sequence $ map (O.getObject os) (N.hashes com)
+    deleteFiles dFiles
+    restoreFiles rFiles
+    putStrLn $ "Updated repo to " ++ hh
+    return ((comSet, os), com)
+
+files :: N.World -> [String] -> IO (N.World)
+files w@((comSet, os), headCom) [hh] = do
+    let h = O.hexToHash hh
+    let com = head $ Set.toList $ Set.filter ((h==).N.cid) comSet
+    let Just files = sequence $ map (O.getObject os) (N.hashes com)
+    putStrLn $ "Files for " ++ hh
+    mapM (putStrLn.show) files
+    return w 
 
 dispatch :: N.World -> String -> [String] -> IO (N.World)
 -- Nor commands
 dispatch w "commit" ns = commit w ns
 dispatch w "tree" _ = printCommits w >> return w
+dispatch w "checkout" h = checkout w h
+dispatch w "files" h = files w h
 -- Default
 dispatch w _ _ = putStrLn "    ! Invalid Command" >> return w
 

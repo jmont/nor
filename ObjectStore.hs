@@ -2,16 +2,29 @@ module ObjectStore where
 import Control.Applicative
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import Data.Serialize
-import Numeric (showHex)
+import Numeric (showHex, readHex)
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
 import qualified Data.Foldable as F
 -------------------------------------------------
 
+makeSizeTwo :: String -> String
+makeSizeTwo i@(a:[]) = '0':i
+makeSizeTwo i@(a:b:[]) = i 
+
+splitInTwos :: [a] -> [[a]]
+splitInTwos (a:b:rest) = [a,b]:(splitInTwos rest)
+splitInTwos [] = []
+
+hexToHash :: String -> Hash
+hexToHash hx = Hash $ Strict.pack . map fst 
+                    . concat . map readHex . splitInTwos $ hx
+
 newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
 instance Show Hash where
-    show = concat . map (flip showHex "") . Strict.unpack . getHash
+    show = concat . map makeSizeTwo 
+                  . map (flip showHex "") . Strict.unpack . getHash
 instance Serialize Hash where
     put (Hash h) = put h
     get = Hash <$> get
