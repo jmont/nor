@@ -58,6 +58,7 @@ addCommit s (commitS, os) =
 commit :: World -> [File] -> World
 commit w@(core, head) fs =
     let fhs = addHashableAs fs
+        -- ERROR - NEED TO REMOVE HASHES WITH SAME PATHS!!!
         fc = createCommit fhs (Just head)
     in addCommit fc core
 
