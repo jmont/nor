@@ -23,6 +23,11 @@ getObject os h = Map.lookup h (store os)
 getHashes :: ObjectStore a -> [Hash]
 getHashes = Map.keys . store
 
+addObjects :: Serialize a => ObjectStore a -> [a] -> ([Hash], ObjectStore a)
+addObjects os as = foldr (\f (hs,os) ->
+                     let (h,os') = addObject os f
+                     in (h:hs,os')) ([],os) as
+
 instance Functor ObjectStore where
    fmap fn fa = OS $ fmap fn (store fa)
 instance F.Foldable ObjectStore where
