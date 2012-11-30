@@ -157,10 +157,10 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
---mergeC :: Commit -> Commit -> Commit -> Maybe Hash -> 
---         Either ([Conflict [Patch]] -> [Patch] -> WithObjects File Commit) 
- --               (WithObjects File Commit) 
-mergeC ca cb lca mpcid = S.state (\os ->
+(>||<) = mergeParallelPatches
+
+mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
+mergeC ca cb lca newpc = S.state (\os ->
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
