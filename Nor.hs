@@ -162,7 +162,7 @@ mergeC ca cb lca newpc = S.state (\os ->
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
-          patchAB = mergeParallelPatches patchA patchB
+          (patchAB, conflicts) = mergeParallelPatches patchA patchB
           lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
           newFiles = applyPatches patchAB lcaFiles
           --What happens if some files haven't changed??
