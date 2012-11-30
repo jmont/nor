@@ -47,9 +47,15 @@ getFile p = do
     return $ N.File p (lines contents)
 
 commit :: N.World -> [String] -> IO (N.World)
+commit w@((_, os), com) ("-a":names) = do
+    let Just files = sequence $ map (O.getObject os) (N.hashes com)
+    let paths = map N.path files ++ names
+    commit w paths
 commit w names = do
     fs <- mapM getFile names
-    return $ N.commit w fs
+    let w'@(_, newCom) = N.commit w fs
+    putStrLn $ show (N.cid newCom)
+    return w'
 
 printCommits :: N.World -> IO ()
 printCommits ((commits, _) , hc) = do
