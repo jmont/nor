@@ -157,26 +157,20 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
-(>||<) = mergeParallelPatches
 
-mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
-mergeC ca cb lca newpc = S.state (\os ->
+mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit -> 
+               ([Patch],[Conflict [Patch]])
+mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
-          (patchAB, conflicts) = mergeParallelPatches patchA patchB
-          lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
-      in if null conflicts
-         then let sPatchAB = seqParallelPatches patchAB
-                  newFiles = applyPatches sPatchAB lcaFiles
-                  (hs,newOS) = addObjects os newFiles
-              in Right (Commit mpcid hs (hash (Strict.concat hs)),newOS)
-         else Left 
-               --Assumes no conflicts after mergeFn
-               (\mergeFn -> 
-                  let resConfPatches = mergeFn conflicts
-                      sPatchAB = seqParallelPatches (patchAB ++ resConfPatches)
-                      newFiles = applyPatches sPatchAB lcaFiles
-                      (hs,newOS) = addObjects os newFiles
-                  in (Commit mpcid hs (hash (Strict.concat hs)),newOS))) 
+      in patchA >||< patchB
 
+parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash -> 
+                           WithObjects File Commit
+parallelPatchesToCommit lca patches mpcid = S.state (\os ->
+      let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
+          sPatches = seqParallelPatches patches
+          newFiles = applyPatches sPatches lcaFiles
+          (hs,newOS) = addObjects os newFiles
+      in (Commit mpcid hs (hash (Strict.concat hs)),newOS))

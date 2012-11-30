@@ -72,6 +72,8 @@ seqParallelPatches ps =
                otherwise  -> otherwise
          sortChs _ _ = error "This can't happen"
 
+(>||<) = mergeParallelPatches
+
 mergeParallelPatches :: [Patch] -> [Patch] -> ([Patch], [Conflict [Patch]])
 mergeParallelPatches p1s p2s = 
       --Map Path [PatchAction]
@@ -117,6 +119,8 @@ conflicts p1 p2 = cmpHunk p1 p2 == Conf
 
 findConflictsPA :: [PatchAction] -> [PatchAction] ->
                    ([PatchAction],[Conflict [PatchAction]])
+--Remove empty files should be removed completely, just have the conflict
+--delete the lines
 findConflictsPA pas [] = (pas,[])
 findConflictsPA [] pbs = (pbs,[])
 findConflictsPA pas pbs =
