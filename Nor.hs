@@ -162,6 +162,8 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
+(>||<) = mergeParallelPatches
+
 mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
 mergeC ca cb lca newpc = S.state (\os ->
       let patchTo = patchFromCommits os
