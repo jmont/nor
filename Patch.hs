@@ -2,6 +2,8 @@ module Patch where
 import Data.Algorithm.Diff
 import qualified Data.Map as Map
 import Data.List
+import Data.Graph as G
+import Data.Tree as T
 
 type Edit t = (DI, t)
 type Path = String
@@ -19,7 +21,8 @@ data PatchAction = RemoveEmptyFile
                  | ChangeHunk { offset :: Int -- Starting Line Number
                               , old :: [String] -- List of old lines
                               , new :: [String] -- list of new lines
-                              } deriving (Show, Eq)
+                              } deriving (Show, Eq, Ord)
+--WE SHOULDN'T JUST DERIVE ORD!!
 
 applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
 applyEdits es strs = sequence (aE es strs)
@@ -58,7 +61,7 @@ seqParallelPatches [p] = [p]
 seqParallelPatches ps =
          let rems = filter eqRemEFile ps
              cres = filter eqCreEFile ps
-             chs  = filter (\p -> not (or [(eqRemEFile p),(eqCreEFile p)])) ps
+             chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
          in cres ++ sortBy sortChs chs ++ rems
          where
          eqRemEFile (Patch _ RemoveEmptyFile) = True
@@ -117,6 +120,7 @@ cmpHunk _ _ = error "Compare Hunk applied to non Change Hunks"
 conflicts :: PatchAction -> PatchAction -> Bool
 conflicts p1 p2 = cmpHunk p1 p2 == Conf 
 
+--Works on a Path
 findConflictsPA :: [PatchAction] -> [PatchAction] ->
                    ([PatchAction],[Conflict [PatchAction]])
 --Remove empty files should be removed completely, just have the conflict
@@ -128,26 +132,41 @@ findConflictsPA pas pbs =
        bHasRem = any (== RemoveEmptyFile) pbs
        aHasCre = any (== CreateEmptyFile) pas
        bHasCre = any (== CreateEmptyFile) pbs
-       (chNoConf,chConfs) = confCHs (filter isCH pas) (filter isCH pbs)
+       (chNoConf,chConfs) = getChangeHConfs (filter isCH pas) (filter isCH pbs)
    in case (aHasRem,bHasRem) of
       (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
       (True,False) -> if any hasNew pbs
                       then ([],[Conflict pas pbs])
                       else (pas ++ pbs,[])
       (False,True) -> findConflictsPA pbs pas
-      (False,False) -> if or [aHasCre,bHasCre]
+      (False,False) -> if aHasCre || bHasCre
                        then (CreateEmptyFile : chNoConf,chConfs)
                        else (chNoConf,chConfs)
    where isCH (ChangeHunk _ _ _) = True
          isCH _ = False
          hasNew (ChangeHunk off olds news) = length news > 0
          hasNew _ = False
-         confCHs :: [PatchAction] -> [PatchAction] ->
-                    ([PatchAction],[Conflict [PatchAction]])
+
+getChangeHConfs :: [PatchAction] -> [PatchAction] ->
+                      ([PatchAction],[Conflict [PatchAction]])
+getChangeHConfs ch1s ch2s =
+   let confs1 = map (\ch -> (1,ch,(filter (conflicts ch) ch2s))) ch1s
+       confs2 = map (\ch -> (2,ch,(filter (conflicts ch) ch1s))) ch2s
+       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
+       conflictTrees = G.components confGraph
+   in  foldr (\confTree (noConfs,confs) -> 
+               let elems = flatten confTree
+                   (fromPa1,fromPa2) = partition elems (== 1) adjList
+               in if length elems == 1 
+                  then 
+                     let (_,ch,_) = adjList (head elems)
+                     in (ch:noConfs,confs)
+                  else (noConfs, Conflict fromPa1 fromPa2 : confs))
+             ([],[]) conflictTrees 
          --Detects conflicts within two lists of changehunks
-         confCHs [] c2s = (c2s,[])
-         confCHs (c1:c1s) c2s =
-            let confs = filter (conflicts c1) c2s
-                (noConfs,allConfs) = confCHs c1s c2s
-            in if null confs then (c1:noConfs, allConfs)
-                             else (noConfs, Conflict [c1] confs : allConfs)
+   where partition :: [Vertex] -> (node -> Bool) -> 
+                     (Vertex -> (node,key,[key])) -> ([key],[key])
+         partition vertexList partFun vertexMap =
+            foldr (\(n,k,_) (k1s,k2s) -> 
+                     if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
+                  ([],[]) (map vertexMap vertexList) 

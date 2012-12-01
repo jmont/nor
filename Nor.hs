@@ -158,6 +158,9 @@ applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
 
+applyConflict :: [Conflict [Patch]] -> [File] -> [File]
+applyConflict = error "not yet implemented"
+
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit -> 
                ([Patch],[Conflict [Patch]])
 mergeCommit os ca cb lca =
