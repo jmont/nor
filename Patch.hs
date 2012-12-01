@@ -9,10 +9,13 @@ type Edit t = (DI, t)
 type Path = String
 
 data Patch = Patch { ppath :: Path
-                   , patchAction :: PatchAction 
+                   , patchAction :: PatchAction
                    } deriving (Show)
 
-data Conflict t = Conflict t t
+data Conflict = Conflict { cpath :: Path
+                         , firstPatch :: [PatchAction]
+                         , secondPatch :: [PatchAction]
+                         } deriving (Show)
 
 data OrdHunk = Conf | Before | After deriving (Eq)
 
@@ -77,10 +80,10 @@ seqParallelPatches ps =
 
 (>||<) = mergeParallelPatches
 
-mergeParallelPatches :: [Patch] -> [Patch] -> ([Patch], [Conflict [Patch]])
-mergeParallelPatches p1s p2s = 
+mergeParallelPatches :: [Patch] -> [Patch] -> ([Patch], [Conflict])
+mergeParallelPatches p1s p2s =
       --Map Path [PatchAction]
-  let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps)) 
+  let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
                               (map patchAction ps) m)
                               Map.empty (groupBy groupPatch p1s)
       pathAct2ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
@@ -91,23 +94,21 @@ mergeParallelPatches p1s p2s =
                         (\path pa1s pa2s ->
                            let (noConfs,confs) = findConflictsPA pa1s pa2s
                                noConfPatches = map (Patch path) noConfs
-                               confPatches = map (confPAtoConfP path) confs
+                               confPatches =
+                                 map (\(pas,pbs) -> Conflict path pas pbs) confs
                            in (noConfPatches,confPatches))
                         pathAct1ByPath pathAct2ByPath
       only1s = Map.difference pathAct1ByPath pathAct2ByPath
       only2s = Map.difference pathAct2ByPath pathAct1ByPath
-      noConfsP1 = Map.foldrWithKey (\path pas patches -> 
+      noConfsP1 = Map.foldrWithKey (\path pas patches ->
                                     map (Patch path) pas ++ patches) [] only1s
-      noConfsP2 = Map.foldrWithKey (\path pas patches -> 
+      noConfsP2 = Map.foldrWithKey (\path pas patches ->
                                     map (Patch path) pas ++ patches) [] only1s
-      result = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) -> 
-                          (noConfs ++ allNoConfs,confs ++ allConfs)) 
+      result = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) ->
+                          (noConfs ++ allNoConfs,confs ++ allConfs))
                          (noConfsP1 ++ noConfsP2,[]) possConfsByPath
       in result
-  where confPAtoConfP :: Path -> Conflict [PatchAction] -> Conflict [Patch]
-        confPAtoConfP p (Conflict pa1s pa2s) =
-           Conflict (map (Patch p) pa1s) (map (Patch p) pa2s)
-        groupPatch p1 p2  = (ppath p1) == (ppath p2)
+  where groupPatch p1 p2  = (ppath p1) == (ppath p2)
 
 cmpHunk :: PatchAction -> PatchAction -> OrdHunk
 cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
@@ -118,11 +119,11 @@ cmpHunk (ChangeHunk o1 d1s _) (ChangeHunk o2 d2s _) =
 cmpHunk _ _ = error "Compare Hunk applied to non Change Hunks"
 
 conflicts :: PatchAction -> PatchAction -> Bool
-conflicts p1 p2 = cmpHunk p1 p2 == Conf 
+conflicts p1 p2 = cmpHunk p1 p2 == Conf
 
 --Works on a Path
 findConflictsPA :: [PatchAction] -> [PatchAction] ->
-                   ([PatchAction],[Conflict [PatchAction]])
+                   ([PatchAction],[([PatchAction],[PatchAction])])
 --Remove empty files should be removed completely, just have the conflict
 --delete the lines
 findConflictsPA pas [] = (pas,[])
@@ -136,7 +137,7 @@ findConflictsPA pas pbs =
    in case (aHasRem,bHasRem) of
       (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
       (True,False) -> if any hasNew pbs
-                      then ([],[Conflict pas pbs])
+                      then ([],[(pas,pbs)])
                       else (pas ++ pbs,[])
       (False,True) -> findConflictsPA pbs pas
       (False,False) -> if aHasCre || bHasCre
