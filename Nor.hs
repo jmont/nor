@@ -162,22 +162,23 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
-applyConflict :: [Conflict [Patch]] -> [File] -> [File]
+applyConflict :: [Conflict] -> [File] -> [File]
 applyConflict = error "not yet implemented"
 
-mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit -> 
-               ([Patch],[Conflict [Patch]])
+mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
+               ([Patch],[Conflict])
 mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
       in patchA >||< patchB
 
-parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash -> 
+parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash ->
                            WithObjects File Commit
 parallelPatchesToCommit lca patches mpcid = S.state (\os ->
       let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
           sPatches = seqParallelPatches patches
           newFiles = applyPatches sPatches lcaFiles
           (hs,newOS) = addObjects os newFiles
-      in (Commit mpcid hs (hash (Strict.concat hs)),newOS))
+          commitHash = Hash $ hash $ Strict.concat (map getHash hs)
+      in (Commit mpcid hs commitHash,newOS))
