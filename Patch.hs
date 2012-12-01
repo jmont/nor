@@ -149,25 +149,50 @@ findConflictsPA pas pbs =
          hasNew _ = False
 
 getChangeHConfs :: [PatchAction] -> [PatchAction] ->
-                      ([PatchAction],[Conflict [PatchAction]])
+                      ([PatchAction],[([PatchAction],[PatchAction])])
 getChangeHConfs ch1s ch2s =
    let confs1 = map (\ch -> (1,ch,(filter (conflicts ch) ch2s))) ch1s
        confs2 = map (\ch -> (2,ch,(filter (conflicts ch) ch1s))) ch2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
-   in  foldr (\confTree (noConfs,confs) -> 
+   in  foldr (\confTree (noConfs,confs) ->
                let elems = flatten confTree
                    (fromPa1,fromPa2) = partition elems (== 1) adjList
-               in if length elems == 1 
-                  then 
+               in if length elems == 1
+                  then
                      let (_,ch,_) = adjList (head elems)
                      in (ch:noConfs,confs)
-                  else (noConfs, Conflict fromPa1 fromPa2 : confs))
-             ([],[]) conflictTrees 
+                  else (noConfs, (fromPa1,fromPa2) : confs))
+             ([],[]) conflictTrees
          --Detects conflicts within two lists of changehunks
-   where partition :: [Vertex] -> (node -> Bool) -> 
+   where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])
          partition vertexList partFun vertexMap =
-            foldr (\(n,k,_) (k1s,k2s) -> 
+            foldr (\(n,k,_) (k1s,k2s) ->
                      if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
-                  ([],[]) (map vertexMap vertexList) 
+                  ([],[]) (map vertexMap vertexList)
+
+--Doesn't introduce new conflicts with other stuff
+--Sort them!
+conflictAsPatch :: Conflict -> Patch
+conflictAsPatch (Conflict cpath (pa1:pa1s) pa2s) =
+      Patch cpath (vc pa1 pa1s pa2s)
+   where vc :: PatchAction -> [PatchAction] -> [PatchAction] -> PatchAction
+         vc accCh [c1] [] = addEquals $ mergeHunk accCh c1
+         vc accCh [] [c2] = addEquals $ mergeHunk accCh c2
+         vc accCh (c1@(ChangeHunk off1 _ _):c1s) (c2@(ChangeHunk off2 _ _):c2s)=
+            if (off1 <= off2)
+            then vc (mergeHunk accCh c1) c1s (c2:c2s)
+            else vc (mergeHunk accCh c2) (c1:c1s) c2s
+         vc accCh _ _ = error "This can't happen"
+         addEquals (ChangeHunk o dels news) =
+            ChangeHunk o dels (news ++ ["====="])
+conflictAsPatch _ = error "First list of conflict empty"
+
+--Changehunks must overlap maybe ensure this?
+mergeHunk :: PatchAction -> PatchAction -> PatchAction
+mergeHunk c1@(ChangeHunk off1 old1 new1) c2@(ChangeHunk off2 old2 new2) =
+   if off1 <= off2
+   then ChangeHunk off1 olds' ("<<<<<" : new1 ++ ">>>>>" : new2)
+   else mergeHunk c2 c1
+   where olds' = take (off1 - off2) old1 ++ old2
