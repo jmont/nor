@@ -162,19 +162,22 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
-(>||<) = mergeParallelPatches
+applyConflict :: [Conflict [Patch]] -> [File] -> [File]
+applyConflict = error "not yet implemented"
 
-mergeC :: Commit -> Commit -> Commit -> Commit -> WithObjects File Commit
-mergeC ca cb lca newpc = S.state (\os ->
+mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit -> 
+               ([Patch],[Conflict [Patch]])
+mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
-          patchAB = mergeParallelPatches patchA patchB
-          lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
-          newFiles = applyPatches patchAB lcaFiles
-          --What happens if some files haven't changed??
-          (hs,newOS) = foldr (\f (hs,os) ->
-                  let (h,os') = addObject os f
-                  in (h:hs,os')) ([],os) newFiles
-       in (Commit (Just (cid newpc)) hs (mkCommitHash hs), newOS))
+      in patchA >||< patchB
 
+parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash -> 
+                           WithObjects File Commit
+parallelPatchesToCommit lca patches mpcid = S.state (\os ->
+      let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
+          sPatches = seqParallelPatches patches
+          newFiles = applyPatches sPatches lcaFiles
+          (hs,newOS) = addObjects os newFiles
+      in (Commit mpcid hs (hash (Strict.concat hs)),newOS))
