@@ -124,33 +124,33 @@ patchFromCommits os ca cb =
           filesOnlyB = getFilesForSet os onlyB
           --Assume everything in A has been deleted
           aPatchMap = foldr (\f pm -> Map.insert (path f)
-               [ChangeHunk 0 (contents f) [], RemoveEmptyFile] pm)
+               [Change (ChangeHunk 0 (contents f) []), RemoveEmptyFile] pm)
                Map.empty filesOnlyA
           --Update map, anything not found is new
           --If exists, then change to only a changehunk
           patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
                      aPatchMap filesOnlyB
           patch = Map.foldrWithKey (\path pActions acc ->
-                  (map (Patch path) pActions) ++ acc) [] patchMap
+                  (map (AP path) pActions) ++ acc) [] patchMap
           in patch
    where getFilesForSet os hashesSet =
           (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
          alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
          alterFun newFile Nothing =
-            Just $ [CreateEmptyFile, ChangeHunk 0 [] (contents newFile)]
-         alterFun changedFile (Just [(ChangeHunk _ fContents []),_]) =
-            Just $ editsToChangeHunks $ getEdits fContents (contents changedFile)
+            Just $ [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
+         alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
+            Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
          alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH
 applyPatch :: Patch -> [File] -> [File]
-applyPatch (Patch ppath CreateEmptyFile) fs = File ppath [""]:fs
-applyPatch (Patch _ RemoveEmptyFile) [] = [] --Maybe error?
+applyPatch (AP ppath CreateEmptyFile) fs = File ppath [""]:fs
+applyPatch (AP _ RemoveEmptyFile) [] = [] --Maybe error?
 --Should we check if empty file?
-applyPatch p@(Patch ppath RemoveEmptyFile) (f:fs) =
+applyPatch p@(AP ppath RemoveEmptyFile) (f:fs) =
    if ppath == path f then fs else f:applyPatch p fs
-applyPatch p@(Patch ppath (ChangeHunk o dels adds)) [] = [] --error?
-applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
+applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) [] = [] --error?
+applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) (f:fs) =
    if ppath == path f
    then let preHunk = take o (contents f)
             rest = drop o (contents f)
@@ -163,7 +163,7 @@ applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
-               ([Patch],[Conflict])
+               ([Patch],[AtPath (Conflict [ChangeHunk])])
 mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
