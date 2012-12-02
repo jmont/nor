@@ -139,7 +139,7 @@ patchFromCommits os ca cb =
          alterFun newFile Nothing =
             Just $ [CreateEmptyFile, ChangeHunk 0 [] (contents newFile)]
          alterFun changedFile (Just [(ChangeHunk _ fContents []),_]) =
-            Just $ editsToChangeHunks $ getDiff fContents (contents changedFile)
+            Just $ editsToChangeHunks $ getEdits fContents (contents changedFile)
          alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH

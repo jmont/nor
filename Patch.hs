@@ -5,7 +5,11 @@ import Data.List
 import Data.Graph as G
 import Data.Tree as T
 
-type Edit t = (DI, t)
+data Edit t = C -- Copy current input line to output
+            | I t -- Insert argument line into output
+            | D t -- Delete current input line which must match
+            deriving Eq
+
 type Path = String
 
 data Patch = Patch { ppath :: Path
@@ -27,13 +31,20 @@ data PatchAction = RemoveEmptyFile
                               } deriving (Show, Eq, Ord)
 --WE SHOULDN'T JUST DERIVE ORD!!
 
+getEdits :: Eq t => [t] -> [t] -> [Edit t]
+getEdits t1s t2s = map mapFun (getDiff t1s t2s)
+   where mapFun :: (DI,t) -> Edit t
+         mapFun (B,_) = C
+         mapFun (F,t) = D t
+         mapFun (S,t) = I t
+
 applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
 applyEdits es strs = sequence (aE es strs)
-   where aE ((B,str1):es) (str2:strs) =
-            if (str1==str2) then Just str2 : aE es strs else [Nothing]
-         aE ((F,str1):es) (str2:strs) =
+   where aE (C:es) (str2:strs) =
+            Just str2 : aE es strs
+         aE ((D str1):es) (str2:strs) =
             if (str1==str2) then aE es strs else [Nothing]
-         aE ((S,str1):es) strs = Just str1 : aE es strs
+         aE ((I str1):es) strs = Just str1 : aE es strs
          aE [] [] = []
          aE _  [] = [Nothing]
 
@@ -42,15 +53,19 @@ editsToPatch es p = map (Patch p) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [PatchAction]
 editsToChangeHunks es = eTCH es 0
-   where eqB = ((==) B . fst)
-         neqB = ((/=) B . fst)
-         eqF = ((==) F . fst)
-         neqF = ((/=) F . fst)
+   where eqC = ((==) C)
+         neqC = not . eqC
+         eqD (D _) = True
+         eqD _ = False
+         neqD = not . eqD
+         getStr (D str) = str
+         getStr (I str) = str
+         getStr C = error "this can't happen"
          eTCH es lineNum =
-            let (keeps, rest) = span eqB es
-                (changes, rest') = span neqB rest
-                dels = map snd (filter eqF changes)
-                adds = map snd (filter neqF changes)
+            let (keeps, rest) = span eqC es
+                (changes, rest') = span neqC rest
+                dels = map getStr (filter eqD changes)
+                adds = map getStr (filter neqD changes)
                 ch = ChangeHunk (lineNum + length keeps) dels adds
              in if (length adds + length dels) == 0
                  then []
