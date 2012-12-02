@@ -11,17 +11,24 @@ import qualified Data.ByteString as S
 import Data.Serialize
 import qualified ObjectStore as O
 import qualified Nor as N
+import qualified Control.Monad.State as State
+
+type World = (N.Core, N.Commit)
+
+initWorld :: World
+initWorld = let core@(commitSet,os) = N.initCore
+            in (core,head $ Set.toList commitSet)
 
 progDirPath = "./.nor"
 worldPath = progDirPath ++ "/world"
 
-saveWorld :: N.World -> IO ()
+saveWorld :: World -> IO ()
 saveWorld w = do
     handle <- openFile worldPath WriteMode
     S.hPutStr handle $ encode w
     hClose handle
 
-getWorld' :: IO (Either String N.World)
+getWorld' :: IO (Either String World)
 getWorld' = E.catch
     (do handle <- openFile worldPath ReadMode
         encodedW <- S.hGetContents handle
@@ -34,11 +41,11 @@ createProgDir = E.catch
     (createDirectory progDirPath)
     (\(e) -> hPutStrLn stderr (show (e :: E.IOException)))
 
-getWorld :: IO (N.World)
+getWorld :: IO (World)
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
-        Left err -> createProgDir >> (return N.init)
+        Left err -> createProgDir >> (return initWorld)
         Right w -> return w
 
 getFile :: String -> IO(N.File)
@@ -46,18 +53,21 @@ getFile p = do
     contents <- readFile ("./"++p)
     return $ N.File p (lines contents)
 
-commit :: N.World -> [String] -> IO (N.World)
-commit w@((_, os), com) ("-a":names) = do
-    let Just files = sequence $ map (O.getObject os) (N.hashes com)
+commit :: World -> [String] -> IO (World)
+commit w@((_, os), hc) ("-a":names) = do
+    let Just files = sequence $ map (O.getObject os) (N.hashes hc)
     let paths = map N.path files ++ names
     commit w paths
-commit w names = do
+commit w@(core, hc) names = do
     fs <- mapM getFile names
-    let w'@(_, newCom) = N.commit w fs
-    putStrLn $ show (N.cid newCom)
+    let fhs = N.addHashableAs fs
+    let newCommitWithFiles = N.createCommit fhs (Just hc)
+    let (newHead,newCore) = State.runState (N.addCommit newCommitWithFiles) core
+    let w' = (newCore, newHead)
+    putStrLn $ show (N.cid newHead)
     return w'
 
-printCommits :: N.World -> IO ()
+printCommits :: World -> IO ()
 printCommits ((commits, _) , hc) = do
     putStrLn $ "HEAD: " ++ (show (N.cid hc))
     mapM (putStrLn.show) (Set.toList commits)
@@ -84,7 +94,7 @@ restoreFiles fs = do
     mapM restoreFile fs
     return ()
 
-checkout :: N.World -> [String] -> IO (N.World)
+checkout :: World -> [String] -> IO (World)
 checkout w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).N.cid) comSet
@@ -96,7 +106,7 @@ checkout w@((comSet, os), headCom) [hh] = do
     putStrLn $ "Updated repo to " ++ hh
     return ((comSet, os), com)
 
-files :: N.World -> [String] -> IO (N.World)
+files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).N.cid) comSet
