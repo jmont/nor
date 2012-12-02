@@ -218,8 +218,10 @@ getChangeHConfs ch1s ch2s =
 --Doesn't introduce new conflicts with other stuff
 --Sort them!
 
---conflictAsPatch :: Conflict -> Patch
---conflictAsPatch (Conflict cpath (pa1:pa1s) pa2s) = error "hI"
+conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
+conflictAsPatch (AP cpath (c@(Conflict ch1s ch2s))) =
+   let olds = getConflictOlds c
+       changeHunksToEdits X (length olds)
 
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
