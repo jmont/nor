@@ -42,7 +42,6 @@ instance Serialize Commit where
 
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
-type World = (Core, Commit)
 
 instance (Serialize a) => Serialize (ObjectStore a) where
     put (OS s) = put s
@@ -68,25 +67,19 @@ createCommit s pc = do
    S.put os
    return $ Commit pcid hashes $ mkCommitHash hashes
 
-addCommit :: WithObjects File Commit -> Core -> World
-addCommit s (commitS, os) =
-   let (newCommit,newOS) = S.runState s os
-   in ((Set.insert newCommit commitS, newOS), newCommit)
+addCommit :: WithObjects File Commit -> S.State Core Commit
+addCommit s = S.state (\(commitS, os) ->
+      let (newCommit,newOS) = S.runState s os
+      in (newCommit, (Set.insert newCommit commitS, newOS)))
 
-commit :: World -> [File] -> World
-commit w@(core, head) fs =
-    let fhs = addHashableAs fs
-        -- ERROR - NEED TO REMOVE HASHES WITH SAME PATHS!!!
-        fc = createCommit fhs (Just head)
-    in addCommit fc core
 
 mkCommitHash :: [Hash] -> Hash
 mkCommitHash = Hash . hash . Strict.concat . (map getHash)
 
 -- An empty world
-init :: World
-init = let initC = Commit Nothing [] $ Hash (hash (encode ""))
-       in ((Set.singleton initC, mkEmptyOS),initC)
+initCore :: Core
+initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
+           in (Set.singleton initC, mkEmptyOS)
 
 commitById :: Core -> Hash -> Maybe Commit
 commitById (commitSet, _) id =
