@@ -55,10 +55,10 @@ applyEdits es strs = sequence (aE es strs)
    where aE (C:es) (str2:strs) =
             Just str2 : aE es strs
          aE ((D str1):es) (str2:strs) =
-            if (str1==str2) then aE es strs else [Nothing]
+            if (str1 == str2) then aE es strs else [Nothing]
          aE ((I str1):es) strs = Just str1 : aE es strs
          aE [] [] = []
-         aE _  [] = [Nothing]
+         aE _  _ = [Nothing]
 
 editsToPatch :: [Edit String] -> Path -> [Patch]
 editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
@@ -83,8 +83,13 @@ editsToChangeHunks es = eTCH es 0
                  then []
                  else ch : eTCH rest' (offset ch + length dels)
 
-changeHunksToEdits :: [ChangeHunk] -> [Edit String]
-changeHunksToEdits chs = cHE 0 [] chs
+--Needs Sorted!!
+changeHunksToEdits :: [ChangeHunk] -> Int -> [Edit String]
+changeHunksToEdits chs fileLength =
+   let edits = cHE 0 [] chs
+       lastCh = last chs
+       csToAdd = fileLength - (offset lastCh + length (old lastCh))
+   in edits ++ take csToAdd (repeat C)
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
          cHE off es [] = es
          cHE off es (ch:chs) =
@@ -212,6 +217,7 @@ getChangeHConfs ch1s ch2s =
 
 --Doesn't introduce new conflicts with other stuff
 --Sort them!
+
 --conflictAsPatch :: Conflict -> Patch
 --conflictAsPatch (Conflict cpath (pa1:pa1s) pa2s) = error "hI"
 
