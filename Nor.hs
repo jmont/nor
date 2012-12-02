@@ -25,11 +25,28 @@ instance Serialize File where
     put (File p c) = put p >> put c
     get = File <$> get <*> get
 
-type HashEntry = (Hash, File)
-type HashDict = Map.Map Hash File
-
 --Mapping between Hashes -> a
 type WithObjects a b = S.State (ObjectStore a) b
+
+data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
+                     , hashes :: [Hash] -- Hashes of all files at given time
+                     , cid :: Hash
+                     } deriving (Show)
+instance Ord Commit where
+   compare c1 c2 = compare (cid c1) (cid c2)
+instance Eq Commit where
+   (==) c1 c2 = (cid c1) == (cid c2)
+instance Serialize Commit where
+    put (Commit pid hs id) = put pid >> put hs >> put id
+    get = Commit <$> get <*> get <*> get
+
+-- list of all commits, hash->file, head commit, commitCount
+type Core = (Set.Set Commit, ObjectStore File)
+type World = (Core, Commit)
+
+instance (Serialize a) => Serialize (ObjectStore a) where
+    put (OS s) = put s
+    get = OS <$> get
 
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
@@ -65,26 +82,6 @@ commit w@(core, head) fs =
 
 mkCommitHash :: [Hash] -> Hash
 mkCommitHash = Hash . hash . Strict.concat . (map getHash)
-
-data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
-                     , hashes :: [Hash] -- Hashes of all files at given time
-                     , cid :: Hash
-                     } deriving (Show)
-instance Ord Commit where
-   compare c1 c2 = compare (cid c1) (cid c2)
-instance Eq Commit where
-   (==) c1 c2 = (cid c1) == (cid c2)
-instance Serialize Commit where
-    put (Commit pid hs id) = put pid >> put hs >> put id
-    get = Commit <$> get <*> get <*> get
-
--- list of all commits, hash->file, head commit, commitCount
-type Core = (Set.Set Commit, ObjectStore File)
-type World = (Core, Commit)
-
-instance (Serialize a) => Serialize (ObjectStore a) where
-    put (OS s) = put s
-    get = OS <$> get
 
 -- An empty world
 init :: World
