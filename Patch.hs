@@ -50,15 +50,15 @@ getEdits t1s t2s = map mapFun (getDiff t1s t2s)
          mapFun (F,t) = D t
          mapFun (S,t) = I t
 
-applyEdits :: Eq t => [Edit t] -> [t] -> Maybe [t]
-applyEdits es strs = sequence (aE es strs)
+applyEdits :: Eq t => [Edit t] -> [t] -> [t]
+applyEdits es strs = aE es strs
    where aE (C:es) (str2:strs) =
-            Just str2 : aE es strs
+            str2 : aE es strs
          aE ((D str1):es) (str2:strs) =
-            if (str1 == str2) then aE es strs else [Nothing]
-         aE ((I str1):es) strs = Just str1 : aE es strs
+            if (str1 == str2) then aE es strs else error "Deletes don't match"
+         aE ((I str1):es) strs = str1 : aE es strs
          aE [] [] = []
-         aE _  _ = [Nothing]
+         aE _  _ = error "Bad things happened"
 
 editsToPatch :: [Edit String] -> Path -> [Patch]
 editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
