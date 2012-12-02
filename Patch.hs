@@ -12,7 +12,7 @@ data Edit t = C -- Copy current input line to output
 
 type Path = String
 
-data AtPath t = AP Path t
+data AtPath t = AP Path t deriving Show
 
 type Patch = AtPath PatchAction
 
@@ -221,8 +221,13 @@ getChangeHConfs ch1s ch2s =
 conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
 conflictAsPatch (AP cpath (c@(Conflict ch1s ch2s))) =
    let olds = getConflictOlds c
-       changeHunksToEdits X (length olds)
-
+       off = min (offset (head ch1s)) (offset (head ch2s))
+       editsCh1 = drop off $ changeHunksToEdits ch1s (length olds)
+       editsCh2 = drop off $ changeHunksToEdits ch2s (length olds)
+       appliedCh1 = applyEdits editsCh1 olds
+       appliedCh2 = applyEdits editsCh2 olds
+   in AP cpath $ Change $ ChangeHunk off olds
+         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
 getConflictOlds (Conflict (ch1:ch1s) (ch2:ch2s)) =
