@@ -175,19 +175,37 @@ getChangeHConfs ch1s ch2s =
 --Doesn't introduce new conflicts with other stuff
 --Sort them!
 conflictAsPatch :: Conflict -> Patch
-conflictAsPatch (Conflict cpath (pa1:pa1s) pa2s) =
-      Patch cpath (vc pa1 pa1s pa2s)
-   where vc :: PatchAction -> [PatchAction] -> [PatchAction] -> PatchAction
-         vc accCh [c1] [] = addEquals $ mergeHunk accCh c1
-         vc accCh [] [c2] = addEquals $ mergeHunk accCh c2
-         vc accCh (c1@(ChangeHunk off1 _ _):c1s) (c2@(ChangeHunk off2 _ _):c2s)=
-            if (off1 <= off2)
-            then vc (mergeHunk accCh c1) c1s (c2:c2s)
-            else vc (mergeHunk accCh c2) (c1:c1s) c2s
-         vc accCh _ _ = error "This can't happen"
-         addEquals (ChangeHunk o dels news) =
-            ChangeHunk o dels (news ++ ["====="])
-conflictAsPatch _ = error "First list of conflict empty"
+conflictAsPatch (Conflict cpath (pa1:pa1s) pa2s) = error "hI"
+
+--Returns the olds for the conflict interval
+getConflictOlds :: Conflict -> [String]
+getConflictOlds (Conflict _ (ch1@(ChangeHunk o1 old1s _):ch1s)
+                            (ch2@(ChangeHunk o2 old2s _):ch2s)) =
+      if o1 <= o2 then gCO (o1,old1s) ch1s (ch2:ch2s)
+                  else gCO (o2,old2s) (ch1:ch1s) ch2s
+   where gCO :: (Int,[String]) -> [PatchAction] -> [PatchAction] -> [String]
+         gCO (off,currOlds) [(ChangeHunk o1 old1s _)] [] =
+            take (o1 - off) currOlds ++ old1s
+         gCO (off,currOlds) [] [(ChangeHunk o2 old2s _)] =
+            take (o2 - off) currOlds ++ old2s
+         gCO (off,currOlds) (ch1@(ChangeHunk o1 old1s _):ch1s)
+                            (ch2@(ChangeHunk o2 old2s _):ch2s) =
+            if o1 <= o2
+            then gCO (off, take (o1 - off) currOlds ++ old1s) ch1s (ch2:ch2s)
+            else gCO (off, take (o2 - off) currOlds ++ old2s) (ch1:ch1s) ch2s
+         gCO _ _ _ = error "Can't happen"
+--     Patch cpath (vc pa1 pa1s pa2s)
+--   where vc :: PatchAction -> [PatchAction] -> [PatchAction] -> PatchAction
+--         vc accCh [c1] [] = addEquals $ mergeHunk accCh c1
+--         vc accCh [] [c2] = addEquals $ mergeHunk accCh c2
+--         vc accCh (c1@(ChangeHunk off1 _ _):c1s) (c2@(ChangeHunk off2 _ _):c2s)=
+--            if (off1 <= off2)
+--            then vc (mergeHunk accCh c1) c1s (c2:c2s)
+--            else vc (mergeHunk accCh c2) (c1:c1s) c2s
+--         vc accCh _ _ = error "This can't happen"
+--         addEquals (ChangeHunk o dels news) =
+--            ChangeHunk o dels (news ++ [">>>>>"])
+--conflictAsPatch _ = error "First list of conflict empty"
 
 --Changehunks must overlap maybe ensure this?
 mergeHunk :: PatchAction -> PatchAction -> PatchAction

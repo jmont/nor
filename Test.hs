@@ -56,6 +56,11 @@ di01 = getDiff i0 i1
 di02 = getDiff i0 i2
 di03 = getDiff i0 i3
 
+j0 = ["x","a","b","c","d","e","f","g","h","y"]
+j1 = ["x","0","1","2","d","6","7","8","h","y"]
+j2 = ["x","a","b","3","4","5","f","9","10","y"]
+dj01 = getDiff j0 j1
+dj02 = getDiff j0 j2
 ------------------------------------------------------------------------------
 --Demo of how to use WithObjects
 file1 = File "test1" ["hello"]
