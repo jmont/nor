@@ -88,7 +88,7 @@ changeHunksToEdits :: [ChangeHunk] -> Int -> [Edit String]
 changeHunksToEdits chs fileLength =
    let edits = cHE 0 [] chs
        lastCh = last chs
-       csToAdd = fileLength - (offset lastCh + length (old lastCh))
+       csToAdd = fileLength - (offset lastCh + length (old lastCh) - 1)
    in edits ++ take csToAdd (repeat C)
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
          cHE off es [] = es
