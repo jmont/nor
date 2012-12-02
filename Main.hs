@@ -13,6 +13,7 @@ import qualified ObjectStore as O
 import Nor
 import qualified Control.Monad.State as State
 import Control.Applicative
+import Patch
 
 -- (Head Commit, List of commits to Rebase)
 data Ephemera = Ephemera { headC :: Commit -- current checked-out commit
@@ -121,17 +122,57 @@ checkout w@((comSet, os), eph) [hh] = do
 files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
-    let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
-    let Just files = sequence $ map (O.getObject os) (hashes com)
+    let com = commitByHash comSet h
+    let Just files = O.getObjects os (hashes com)
     putStrLn $ "Files for " ++ hh
     mapM (putStrLn.show) files
-    return w 
+    return w
 
---rebase :: World -> [String] -> IO (World)
---rebase w@((comSet,os), headCom) [hh] = do
---   let upstreamHash = O.hexToHash hh
---   let upstreamCom = head $ Set.toList $ Set.filter ((h==).cid) comSet
+rebase :: World -> [String] -> IO (World)
+rebase w@((comSet,os), eph) ["--continue"] =
+   --implicit commit
+   let headPaths = getPaths (headC eph)
+       Just p = parent . head $ toR
+       toRebasePaths = getPaths (commitByHash comSet p)
+       pathSet = Set.fromList (toRebasePaths ++ headPaths)
+   in commit w (Set.toList pathSet) >>= rebaseContinue
+   where getPaths :: Commit -> [Path]
+         getPaths c =
+            let Just files = O.getObjects os (hashes c)
+            in map path files
+rebase w@(core@(comSet,os), eph) [hh] =
+   let upstreamHash = O.hexToHash hh
+       upstreamCom = commitByHash comSet upstreamHash
+       lca = getLca core (headC eph) upstreamCom
+       toR = reverse $ takeWhile (/= lca) (ancestorList core (headC eph))
+   in rebaseContinue (core, Ephemera upstreamCom toR)
 
+commitByHash :: Set.Set Commit -> O.Hash -> Commit
+commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
+
+rebaseContinue :: World -> IO (World)
+rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
+   [] -> putStrLn ("Updated repo to " ++ (show (cid  (headC eph)))) >> return w
+   (c:cs) ->
+      let hc = headC eph
+          lca = getLca core hc c
+          (noConfs, confs) = mergeCommit os hc c lca
+      in if null confs
+         then
+            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
+                (head',core') = State.runState (addCommit mergedC) core
+                w' = (core', Ephemera head' cs)
+            in putStrLn ("Merged " ++ (show (cid hc)) ++ " and "
+                                   ++ (show (cid c))) >>
+               rebaseContinue w'
+         else do
+            let conflictPatches = map conflictAsPatch confs
+            let Just files = sequence $ map (O.getObject os) (hashes lca)
+            let paths = map path files
+            checkout w [show (cid lca)] -- replace fs with lca's files
+            restoreFiles $ applyPatches conflictPatches files
+            putStrLn "Conflicts! Fix them and run nor rebase --continue"
+            return (core, Ephemera (headC eph) (tail (toRebase eph)))
 
 dispatch :: World -> String -> [String] -> IO (World)
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
@@ -144,6 +185,7 @@ dispatch' w "commit" ns = commit w ns
 dispatch' w "tree" _ = printCommits w >> return w
 dispatch' w "checkout" h = checkout w h
 dispatch' w "files" h = files w h
+dispatch' w "rebase" args = rebase w args
 -- Default
 dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 

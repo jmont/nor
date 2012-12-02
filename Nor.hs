@@ -63,9 +63,9 @@ createCommit s pc = do
    let hashes = getHashes commitOS
    newState <- S.get
    let (_,os) = S.runState s newState
-   let pcid = (pc >>= (\x -> return (cid x)))
+   let Just pcid = (pc >>= (\x -> return (cid x)))
    S.put os
-   return $ Commit pcid hashes $ mkCommitHash hashes
+   return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
 
 addCommit :: WithObjects File Commit -> S.State Core Commit
 addCommit s = S.state (\(commitS, os) ->

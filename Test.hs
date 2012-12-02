@@ -59,15 +59,21 @@ di03 = getDiff i0 i3
 j0 = ["x","a","b","c","d","e","f","g","h","y"]
 j1 = ["x","0","1","2","d","6","7","8","h","y"]
 j2 = ["x","a","b","3","4","5","f","9","10","y"]
-dj01 = getDiff j0 j1
-dj02 = getDiff j0 j2
-
-k0 = ["x","a","b","c","d","e","f","g","h","y"]
-k1 = ["x","0","1","2","d","6","7","8","h","y"]
-k2 = ["x","a","b","3","4","5","f","9","10","y"]
-dk01 = getDiff k0 k1
-dk02 = getDiff k0 k2
+j01 = editsToPatch (getEdits j0 j1) "test"
+j02 = editsToPatch (getEdits j0 j2) "test"
+(jnoConfs,jconfs) = j01 >||< j02
 
 l0 = ["a","b","c"]
 l1 = ["x","a","d","c"]
 l2 = ["a","d","c"]
+
+m1 = words "a b c"
+m2 = words "a b c e"
+m3 = words "q b c e"
+m4 = words "d b c"
+m5 = words "m n b c"
+p13 = editsToPatch (getEdits m1 m3) "test"
+p14 = editsToPatch (getEdits m1 m4) "test"
+p15 = editsToPatch (getEdits m1 m5) "test"
+(noConfs,confs) = p13 >||< p14
+

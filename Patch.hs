@@ -50,7 +50,7 @@ getEdits t1s t2s = map mapFun (getDiff t1s t2s)
          mapFun (F,t) = D t
          mapFun (S,t) = I t
 
-applyEdits :: Eq t => [Edit t] -> [t] -> [t]
+applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
    where aE (C:es) (str2:strs) =
             str2 : aE es strs
@@ -58,7 +58,8 @@ applyEdits es strs = aE es strs
             if (str1 == str2) then aE es strs else error "Deletes don't match"
          aE ((I str1):es) strs = str1 : aE es strs
          aE [] [] = []
-         aE _  _ = error "Bad things happened"
+         aE es strs = error ("Bad things happened: es:" ++ show es ++
+                            " and strs:" ++ show strs)
 
 editsToPatch :: [Edit String] -> Path -> [Patch]
 editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
@@ -84,11 +85,14 @@ editsToChangeHunks es = eTCH es 0
                  else ch : eTCH rest' (offset ch + length dels)
 
 --Needs Sorted!!
-changeHunksToEdits :: [ChangeHunk] -> Int -> [Edit String]
-changeHunksToEdits chs fileLength =
+--minoff is the minimum
+changeHunksToEdits :: [ChangeHunk] -> Int -> Int -> [Edit String]
+changeHunksToEdits chs fileLength minoff =
    let edits = cHE 0 [] chs
        lastCh = last chs
-       csToAdd = fileLength - (offset lastCh + length (old lastCh) - 1)
+       -- Pad the end with Cs. Use minoff because CHs refer to absolute position
+       -- in original file and minoff adjusts for that.
+       csToAdd = fileLength - (offset lastCh - minoff) - length (old lastCh)
    in edits ++ take csToAdd (repeat C)
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
          cHE off es [] = es
@@ -223,12 +227,13 @@ conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
 conflictAsPatch (AP cpath (c@(Conflict ch1s ch2s))) =
    let olds = getConflictOlds c
        off = min (offset (head ch1s)) (offset (head ch2s))
-       editsCh1 = drop off $ changeHunksToEdits ch1s (length olds)
-       editsCh2 = drop off $ changeHunksToEdits ch2s (length olds)
+       editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
+       editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
        appliedCh1 = applyEdits editsCh1 olds
        appliedCh2 = applyEdits editsCh2 olds
    in AP cpath $ Change $ ChangeHunk off olds
          (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
+
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
 getConflictOlds (Conflict (ch1:ch1s) (ch2:ch2s)) =
@@ -248,24 +253,17 @@ getConflictOlds (Conflict (ch1:ch1s) (ch2:ch2s)) =
             else gCO (off, take (o2 - off) currOlds ++ old2s) (ch1:ch1s) ch2s
          gCO _ _ _ = error "Can't happen"
 
--- OLD getConflictASPatch
---     Patch cpath (vc pa1 pa1s pa2s)
---   where vc :: PatchAction -> [PatchAction] -> [PatchAction] -> PatchAction
---         vc accCh [c1] [] = addEquals $ mergeHunk accCh c1
---         vc accCh [] [c2] = addEquals $ mergeHunk accCh c2
---         vc accCh (c1@(ChangeHunk off1 _ _):c1s) (c2@(ChangeHunk off2 _ _):c2s)=
---            if (off1 <= off2)
---            then vc (mergeHunk accCh c1) c1s (c2:c2s)
---            else vc (mergeHunk accCh c2) (c1:c1s) c2s
---         vc accCh _ _ = error "This can't happen"
---         addEquals (ChangeHunk o dels news) =
---            ChangeHunk o dels (news ++ [">>>>>"])
---conflictAsPatch _ = error "First list of conflict empty"
-
---Changehunks must overlap maybe ensure this?
---mergeHunk :: PatchAction -> PatchAction -> PatchAction
---mergeHunk c1@(ChangeHunk off1 old1 new1) c2@(ChangeHunk off2 old2 new2) =
---   if off1 <= off2
---   then ChangeHunk off1 olds' ("<<<<<" : new1 ++ "=====" : new2)
---   else mergeHunk c2 c1
---   where olds' = take (off2 - off1) old1 ++ old2
+--conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
+--conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do
+--   let olds = getConflictOlds c
+--   let off = min (offset (head ch1s)) (offset (head ch2s))
+--   let editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
+--   putStrLn $ "off:" ++ show off
+--   putStrLn $ "ch2:" ++ show (head (tail ch1s))
+--   putStrLn $ "FOO:" ++ show editsCh1
+--   let editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
+--   let appliedCh1 = applyEdits editsCh1 olds
+--   let appliedCh2 = applyEdits editsCh2 olds
+--   putStrLn $ "olds:" ++  show olds
+--   return $ AP cpath $ Change $ ChangeHunk off olds
+--         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
