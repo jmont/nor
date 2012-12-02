@@ -12,12 +12,22 @@ import Data.Serialize
 import qualified ObjectStore as O
 import Nor
 import qualified Control.Monad.State as State
+import Control.Applicative
 
-type World = (Core, Commit)
+-- (Head Commit, List of commits to Rebase)
+data Ephemera = Ephemera { headC :: Commit -- current checked-out commit
+                         , toRebase :: [Commit] --commits that need to be rebased
+                         } deriving Show
+
+instance Serialize Ephemera where
+   put (Ephemera h toR) = put h >> put toR
+   get = Ephemera <$> get <*> get
+
+type World = (Core, Ephemera)
 
 initWorld :: World
 initWorld = let core@(commitSet,os) = initCore
-            in (core,head $ Set.toList commitSet)
+            in (core,Ephemera (head $ Set.toList commitSet) [])
 
 progDirPath = "./.nor"
 worldPath = progDirPath ++ "/world"
@@ -54,22 +64,24 @@ getFile p = do
     return $ File p (lines contents)
 
 commit :: World -> [String] -> IO (World)
-commit w@((_, os), hc) ("-a":names) = do
-    let Just files = sequence $ map (O.getObject os) (hashes hc)
+commit w@((_, os), eph) ("-a":names) = do
+    let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
     commit w paths
-commit w@(core, hc) names = do
+commit w@(core, eph) names = do
     fs <- mapM getFile names
     let fhs = addHashableAs fs
-    let newCommitWithFiles = createCommit fhs (Just hc)
+    let newCommitWithFiles = createCommit fhs (Just (headC eph))
     let (newHead,newCore) = State.runState (addCommit newCommitWithFiles) core
-    let w' = (newCore, newHead)
+    let w' = (newCore, Ephemera newHead (toRebase eph))
     putStrLn $ show (cid newHead)
     return w'
 
+
+
 printCommits :: World -> IO ()
-printCommits ((commits, _) , hc) = do
-    putStrLn $ "HEAD: " ++ (show (cid hc))
+printCommits ((commits, _) , eph) = do
+    putStrLn $ "HEAD: " ++ (show (cid (headC eph)))
     mapM (putStrLn.show) (Set.toList commits)
     return ()
 
@@ -79,8 +91,8 @@ deleteFile (File p _) = do
     when fileExists $ removeFile p
 
 deleteFiles :: [File] -> IO ()
-deleteFiles fs = do 
-    mapM deleteFile fs 
+deleteFiles fs = do
+    mapM deleteFile fs
     return ()
 
 --create file if it doesnt exsit....
@@ -90,21 +102,21 @@ restoreFile (File p cs) = do
     hClose handle
 
 restoreFiles :: [File] -> IO ()
-restoreFiles fs = do 
+restoreFiles fs = do
     mapM restoreFile fs
     return ()
 
 checkout :: World -> [String] -> IO (World)
-checkout w@((comSet, os), headCom) [hh] = do
+checkout w@((comSet, os), eph) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
     let files = map (O.getObject os) (hashes com)
-    let Just dFiles = sequence $ map (O.getObject os) (hashes headCom)
+    let Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
     let Just rFiles =  sequence $ map (O.getObject os) (hashes com)
     deleteFiles dFiles
     restoreFiles rFiles
     putStrLn $ "Updated repo to " ++ hh
-    return ((comSet, os), com)
+    return ((comSet, os), Ephemera com (toRebase eph))
 
 files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
@@ -122,13 +134,18 @@ files w@((comSet, os), headCom) [hh] = do
 
 
 dispatch :: World -> String -> [String] -> IO (World)
+dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
+dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
+dispatch _ _ _ = error "Please continue rebasing before other commands"
+
+dispatch' :: World -> String -> [String] -> IO (World)
 -- Nor commands
-dispatch w "commit" ns = commit w ns
-dispatch w "tree" _ = printCommits w >> return w
-dispatch w "checkout" h = checkout w h
-dispatch w "files" h = files w h
+dispatch' w "commit" ns = commit w ns
+dispatch' w "tree" _ = printCommits w >> return w
+dispatch' w "checkout" h = checkout w h
+dispatch' w "files" h = files w h
 -- Default
-dispatch w _ _ = putStrLn "    ! Invalid Command" >> return w
+dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 
 main = do
     w <- getWorld

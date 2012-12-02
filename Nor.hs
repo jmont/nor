@@ -72,7 +72,6 @@ addCommit s = S.state (\(commitS, os) ->
       let (newCommit,newOS) = S.runState s os
       in (newCommit, (Set.insert newCommit commitS, newOS)))
 
-
 mkCommitHash :: [Hash] -> Hash
 mkCommitHash = Hash . hash . Strict.concat . (map getHash)
 
