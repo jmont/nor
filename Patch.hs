@@ -193,6 +193,6 @@ conflictAsPatch _ = error "First list of conflict empty"
 mergeHunk :: PatchAction -> PatchAction -> PatchAction
 mergeHunk c1@(ChangeHunk off1 old1 new1) c2@(ChangeHunk off2 old2 new2) =
    if off1 <= off2
-   then ChangeHunk off1 olds' ("<<<<<" : new1 ++ ">>>>>" : new2)
+   then ChangeHunk off1 olds' ("<<<<<" : new1 ++ "=====" : new2)
    else mergeHunk c2 c1
-   where olds' = take (off1 - off2) old1 ++ old2
+   where olds' = take (off2 - off1) old1 ++ old2

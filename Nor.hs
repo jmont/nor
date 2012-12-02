@@ -162,9 +162,6 @@ applyPatch p@(Patch ppath (ChangeHunk o dels adds)) (f:fs) =
 applyPatches :: [Patch] -> [File] -> [File]
 applyPatches ps fs = foldr applyPatch fs ps
 
-applyConflict :: [Conflict] -> [File] -> [File]
-applyConflict = error "not yet implemented"
-
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
                ([Patch],[Conflict])
 mergeCommit os ca cb lca =
