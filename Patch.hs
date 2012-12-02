@@ -8,7 +8,7 @@ import Data.Tree as T
 data Edit t = C -- Copy current input line to output
             | I t -- Insert argument line into output
             | D t -- Delete current input line which must match
-            deriving Eq
+            deriving (Show, Eq)
 
 type Path = String
 
@@ -82,6 +82,16 @@ editsToChangeHunks es = eTCH es 0
              in if (length adds + length dels) == 0
                  then []
                  else ch : eTCH rest' (offset ch + length dels)
+
+changeHunksToEdits :: [ChangeHunk] -> [Edit String]
+changeHunksToEdits chs = cHE 0 [] chs
+   where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
+         cHE off es [] = es
+         cHE off es (ch:chs) =
+            let cs = take (offset ch - off) (repeat C)
+                is = map I (new ch)
+                ds = map D (old ch)
+            in cHE (offset ch + length (old ch)) (es ++ cs ++ ds ++ is) chs
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
