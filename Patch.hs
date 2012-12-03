@@ -104,10 +104,10 @@ changeHunksToEdits chs fileLength minoff =
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
-seqParallelPatches :: [Patch] -> [Patch]
-seqParallelPatches [] = []
-seqParallelPatches [p] = [p]
-seqParallelPatches ps =
+sequenceParallelPatches :: [Patch] -> [Patch]
+sequenceParallelPatches [] = []
+sequenceParallelPatches [p] = [p]
+sequenceParallelPatches ps =
          let rems = filter eqRemEFile ps
              cres = filter eqCreEFile ps
              chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps

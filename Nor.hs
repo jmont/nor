@@ -163,7 +163,7 @@ parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash ->
                            WithObjects File Commit
 parallelPatchesToCommit lca patches mpcid = S.state (\os ->
       let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
-          sPatches = seqParallelPatches patches
+          sPatches = sequenceParallelPatches patches
           newFiles = applyPatches sPatches lcaFiles
           (hs,newOS) = addObjects os newFiles
           commitHash = Hash $ hash $ Strict.concat (map getHash hs)
