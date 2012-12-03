@@ -168,9 +168,11 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
          else do
             let conflictPatches = map conflictAsPatch confs
             let Just files = sequence $ map (O.getObject os) (hashes lca)
+            let combinedPatches = sequenceParallelPatches
+                                    (conflictPatches ++ noConfs)
             let paths = map path files
             checkout w [show (cid lca)] -- replace fs with lca's files
-            restoreFiles $ applyPatches conflictPatches files
+            restoreFiles $ applyPatches combinedPatches files
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
 
