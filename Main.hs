@@ -195,6 +195,6 @@ main = do
     w <- getWorld
     args <- getArgs
     when (args == []) (getProgName >>= (\pn ->
-        error ("Usage: " ++ pn ++ " <command>")))
+        error ("Usage: " ++ pn ++ " < commit | tree | checkout | files | rebase >")))
     w' <- dispatch w (head args) (tail args)
     saveWorld w'
