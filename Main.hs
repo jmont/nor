@@ -129,13 +129,13 @@ files w@((comSet, os), headCom) [hh] = do
     return w
 
 rebase :: World -> [String] -> IO (World)
-rebase w@((comSet,os), eph) ["--continue"] =
+rebase (core@(comSet,os), eph) ["--continue"] =
    --implicit commit
-   let headPaths = getPaths (headC eph)
-       Just p = parent . head $ toR
-       toRebasePaths = getPaths (commitByHash comSet p)
-       pathSet = Set.fromList (toRebasePaths ++ headPaths)
-   in commit w (Set.toList pathSet) >>= rebaseContinue
+   let toPaths = getPaths (headC eph)
+       fromPaths = getPaths . head . toRebase $ eph
+       pathSet = Set.fromList (fromPaths ++ toPaths)
+   in commit (core, Ephemera (headC eph) (tail (toRebase eph)))
+             (Set.toList pathSet) >>= rebaseContinue
    where getPaths :: Commit -> [Path]
          getPaths c =
             let Just files = O.getObjects os (hashes c)
@@ -172,7 +172,7 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             checkout w [show (cid lca)] -- replace fs with lca's files
             restoreFiles $ applyPatches conflictPatches files
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
-            return (core, Ephemera (headC eph) (tail (toRebase eph)))
+            return (core, Ephemera (headC eph) (toRebase eph))
 
 dispatch :: World -> String -> [String] -> IO (World)
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
