@@ -64,6 +64,10 @@ getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
+--Adds a new commit to the world containing the files specified.
+--If "-a" is the first argument, implicitly commit the current head's files.
+--The parent of the new commit is the current head.
+--The new commit becomes the current head.
 commit :: World -> [String] -> IO (World)
 commit w@((_, os), eph) ("-a":names) = do
     let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
