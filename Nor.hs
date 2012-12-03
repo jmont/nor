@@ -156,7 +156,7 @@ applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) (f:fs) =
             else f:applyPatch p fs
 
 applyPatches :: [Patch] -> [File] -> [File]
-applyPatches ps fs = foldl (\acc p -> applyPatch p acc) fs ps
+applyPatches ps fs = foldl (flip applyPatch) fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
                ([Patch],[AtPath (Conflict [ChangeHunk])])
