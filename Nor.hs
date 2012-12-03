@@ -134,22 +134,29 @@ patchFromCommits os ca cb =
 --Assumes SEQUENTIAL PATCH
 applyPatch :: Patch -> [File] -> [File]
 applyPatch (AP ppath CreateEmptyFile) fs = File ppath [""]:fs
-applyPatch (AP _ RemoveEmptyFile) [] = [] --Maybe error?
---Should we check if empty file?
+applyPatch (AP ppath RemoveEmptyFile) [] =
+   error ("Deleting a file that doesn't exist:" ++ ppath)
 applyPatch p@(AP ppath RemoveEmptyFile) (f:fs) =
-   if ppath == path f then fs else f:applyPatch p fs
-applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) [] = [] --error?
+   if ppath == path f
+   then if null (contents f)
+        then fs
+        else error ("Deleting non-empty file" ++ ppath)
+   else f:applyPatch p fs
+applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) [] =
+   error ("ChangeHunk doesn't correspond to any file: " ++ ppath)
 applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) (f:fs) =
    if ppath == path f
    then let preHunk = take o (contents f)
             rest = drop o (contents f)
-            --Check if lines present?
-            newcont = preHunk ++ adds ++ drop (length dels) rest
+            rest' = if dels == take (length dels) rest
+                    then drop (length dels) rest
+                    else error ("Deleting lines that don't exist: " ++ ppath)
+            newcont = preHunk ++ adds ++ rest'
             in File (path f) newcont:fs
             else f:applyPatch p fs
 
 applyPatches :: [Patch] -> [File] -> [File]
-applyPatches ps fs = foldr applyPatch fs ps
+applyPatches ps fs = foldl (\acc p -> applyPatch p acc) fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
                ([Patch],[AtPath (Conflict [ChangeHunk])])
