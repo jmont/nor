@@ -68,6 +68,32 @@ noConflicts :: [ChangeHunk] -> Bool
 noConflicts chs =
    foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
 
+isConflictSet :: Conflict [ChangeHunk] -> Bool
+isConflictSet (Conflict ch1s ch2s) =
+   noConflicts ch1s && noConflicts ch2s &&
+   foldr (\ch acc -> any (conflicts ch) ch1s && acc) True ch2s &&
+   foldr (\ch acc -> any (conflicts ch) ch2s && acc) True ch1s
+
+prop_noConfs :: File -> Gen Property
+prop_noConfs f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,_) = getChangeHConfs ch1s ch2s
+   return $ classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
+
+-- forall x, exists y s.t. x conflicts y. x,y in a conflict set
+prop_eachHasConflict :: File -> Gen Property
+prop_eachHasConflict f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (_,confLists) = getChangeHConfs ch1s ch2s
+   let b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
+   return $ classify (null confLists) "Nothing conflicts" b
+
+-- Forall x in a conflict, forall y not in the conflict x does not
+-- conflict with y
+-- prop SOMETHING
+
 prop_mkGoodCh :: File -> Gen Bool
 prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
 
