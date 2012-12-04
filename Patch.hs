@@ -112,6 +112,7 @@ editsToChangeHunks es = eTCH es 0
 --Needs Sorted!!
 --minoff is the minimum
 changeHunksToEdits :: [ChangeHunk] -> Int -> Int -> [Edit String]
+changeHunksToEdits [] csToAdd _ = take csToAdd (repeat C)
 changeHunksToEdits chs fileLength minoff =
    let edits = cHE 0 [] chs
        lastCh = last chs
