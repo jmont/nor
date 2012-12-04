@@ -125,7 +125,7 @@ restoreFiles fs = do
     mapM restoreFile fs
     return ()
 
--- Replace tracked files with the state of the files in the commit
+-- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
 checkout :: World -> [String] -> IO World
 checkout w@((comSet, os), eph) [hh] =
