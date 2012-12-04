@@ -16,6 +16,8 @@ data AtPath t = AP Path t deriving Show
 
 type Patch = AtPath PatchAction
 
+type ParallelPatches = [Patch]
+
 newtype SequentialPatch = SP Patch
 
 class Conflictable t where
@@ -89,7 +91,7 @@ applyEdits es strs = aE es strs
          aE es strs = error ("Bad things happened: es:" ++ show es ++
                             " and strs:" ++ show strs)
 
-editsToPatch :: [Edit String] -> Path -> [Patch]
+editsToPatch :: [Edit String] -> Path -> ParallelPatches
 editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [ChangeHunk]
@@ -134,7 +136,7 @@ changeHunksToEdits chs fileLength minoff =
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
-sequenceParallelPatches :: [Patch] -> [SequentialPatch]
+sequenceParallelPatches :: ParallelPatches -> [SequentialPatch]
 sequenceParallelPatches [] = []
 sequenceParallelPatches [p] = [SP p]
 sequenceParallelPatches ps =
@@ -155,8 +157,8 @@ sequenceParallelPatches ps =
 
 (>||<) = mergeParallelPatches
 
-mergeParallelPatches :: [Patch] -> [Patch] ->
-                        ([Patch], [AtPath (Conflict [ChangeHunk])])
+mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
+                        (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
 mergeParallelPatches p1s p2s =
       --Map Path [PatchAction]
   let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
@@ -165,7 +167,7 @@ mergeParallelPatches p1s p2s =
       pathAct2ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
                               (map patchAction ps) m)
                               Map.empty (groupBy groupPatch p2s)
-      --Map Path ([Patch],[Conflict [Patch]])
+      --Map Path (ParallelPatches,[Conflict ParallelPatches])
       possConfsByPath = Map.intersectionWithKey
                         (\path pa1s pa2s ->
                            let (noConfs,confs) = findConflictsPA pa1s pa2s

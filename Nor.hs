@@ -103,7 +103,7 @@ ancestorList core c1@(Commit (Just pid) _ _) =
     in c1:(ancestorList core p)
 
 --Return a patch from commit a to commit b
-patchFromCommits :: ObjectStore File -> Commit -> Commit -> [Patch]
+patchFromCommits :: ObjectStore File -> Commit -> Commit -> ParallelPatches
 patchFromCommits os ca cb =
       let hashesA = Set.fromList (hashes ca)
           hashesB = Set.fromList (hashes cb)
@@ -159,14 +159,14 @@ applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
-               ([Patch],[AtPath (Conflict [ChangeHunk])])
+               (ParallelPatches,[AtPath (Conflict [ChangeHunk])])
 mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca
           patchB = lca `patchTo` cb
       in patchA >||< patchB
 
-parallelPatchesToCommit :: Commit -> [Patch] -> Maybe Hash ->
+parallelPatchesToCommit :: Commit -> ParallelPatches -> Maybe Hash ->
                            WithObjects File Commit
 parallelPatchesToCommit lca patches mpcid = S.state (\os ->
       let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
