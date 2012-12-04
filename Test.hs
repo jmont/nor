@@ -82,28 +82,28 @@ isConflictSet (Conflict ch1s ch2s) =
 
 -- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
 -- not contain any conflicting CHs
-prop_noConfs :: File -> Gen Property
+prop_noConfs :: File -> Property
 prop_noConfs f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (noConfs,_) = getChangeHConfs ch1s ch2s
-   return $ classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
+   classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
 
 -- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
-prop_eachHasConflict :: File -> Gen Property
+prop_eachHasConflict :: File -> Property
 prop_eachHasConflict f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (_,confLists) = getChangeHConfs ch1s ch2s
    let b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
-   return $ classify (null confLists) "Nothing conflicts" b
+   classify (null confLists) "Nothing conflicts" b
 
 --Ugly property! Should some of this be in the  type class conflictable?
 --Also 50-70% are fairly "easy" cases
 
 -- Forall x in a conflict, forall y not in the conflict, x does not
 -- conflict with y
-prop_maximalConflictSet :: File -> Gen Property
+prop_maximalConflictSet :: File -> Property
 prop_maximalConflictSet f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
@@ -116,7 +116,7 @@ prop_maximalConflictSet f = do
                            (firstConf conf ++ secondConf conf)
             isMaximalConflict = fstInd && sndInd && noConfsInd
         in isMaximalConflict && acc) True confLists
-   return $ classify (null confLists || null noConfs)
+   classify (null confLists || null noConfs)
       "Either empty conflict list or empty non-conflict list"
       allMaximalConflicts
    --Independent meaning the ch doesn't conflict with any in the conflict set
