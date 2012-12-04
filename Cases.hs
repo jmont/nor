@@ -1,4 +1,4 @@
-module Test where
+module Cases where
 import Nor
 import ObjectStore
 import qualified Data.Set as Set
