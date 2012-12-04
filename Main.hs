@@ -26,7 +26,7 @@ instance Serialize Ephemera where
    put (Ephemera h toR) = put h >> put toR
    get = Ephemera <$> get <*> get
 
--- The all information in the repository. An append-only Core, and a changing
+-- All the information in the repository. An append-only Core, and a changing
 -- Ephemera.
 type World = (Core, Ephemera)
 
