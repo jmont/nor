@@ -44,11 +44,25 @@ fromChange (Change ch) = ch
 fromChange _ = error "fromChange applied to non-change hunk"
 
 getEdits :: Eq t => [t] -> [t] -> [Edit t]
-getEdits t1s t2s = map mapFun (getDiff t1s t2s)
-   where mapFun :: (DI,t) -> Edit t
+getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
+   where toCanonical [] = []
+         toCanonical es =
+             let (keeps, rest) = span eqC es
+                 (changes, rest') = span neqC rest
+                 dels = filter eqD changes
+                 adds = filter neqD changes
+             in keeps ++ dels ++ adds ++ toCanonical rest'
+
+         mapFun :: (DI,t) -> Edit t
          mapFun (B,_) = C
          mapFun (F,t) = D t
          mapFun (S,t) = I t
+
+         eqC = ((==) C)
+         neqC = not . eqC
+         eqD (D _) = True
+         eqD _ = False
+         neqD = not . eqD
 
 applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
@@ -77,9 +91,8 @@ editsToChangeHunks es = eTCH es 0
          eTCH es lineNum =
             let (keeps, rest) = span eqC es
                 (changes, rest') = span neqC rest
-                dels = map getStr (filter eqD changes)
-                adds = map getStr (filter neqD changes)
-                ch = ChangeHunk (lineNum + length keeps) dels adds
+                (dels, adds)  = span eqD changes
+                ch = ChangeHunk (lineNum + length keeps) (map getStr dels) (map getStr adds)
              in if (length adds + length dels) == 0
                  then []
                  else ch : eTCH rest' (offset ch + length dels)
