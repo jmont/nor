@@ -278,7 +278,7 @@ getConflictOlds (Conflict (ch1:ch1s) (ch2:ch2s)) =
             if o1 <= o2
             then gCO (off, take (o1 - off) currOlds ++ old1s) ch1s (ch2:ch2s)
             else gCO (off, take (o2 - off) currOlds ++ old2s) (ch1:ch1s) ch2s
-         gCO _ _ _ = error "Can't happen"
+         gCO _ _ _ = error "Can't happen in getConflictsOld"
 
 --conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
 --conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do

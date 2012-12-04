@@ -62,8 +62,9 @@ mkGoodCH startoff f = do
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
             liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
-    where slice  :: Int -> Int -> [a] -> [a]
-          slice from to xs = take (to - from + 1) (drop from xs)
+
+slice :: Int -> Int -> [a] -> [a]
+slice from to xs = take (to - from + 1) (drop from xs)
 
 -- forall x,y in ChangeHunk list, x does not conflict with y
 noConflicts :: [ChangeHunk] -> Bool
@@ -130,6 +131,17 @@ prop_maximalConflictSet f = do
          chIndependentOfConfs confs ch =
             all (\conf -> chIndependentOfConf conf ch) confs
 
+-- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
+-- more conflicts
+prop_viewableConflict :: File -> Gen Property
+prop_viewableConflict f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
+   let viewableConflicts = map conflictAsCH confLists
+   return $ classify (null confLists) "Empty non-conflict list"
+      $ noConflicts (viewableConflicts ++ noConfs)
+
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
 prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
@@ -145,8 +157,31 @@ prop_changeHunkEditIso :: [String] -> [String] -> Property
 prop_changeHunkEditIso x y =
         let es = getEdits x y
             chs = editsToChangeHunks es
-        in classify ((null x) ||  (null y)) "Either empty"
+        in classify ((null x) || (null y)) "Either empty"
             (changeHunksToEdits chs (length x) 0 == es)
+
+prop_getConflictOlds :: File -> Gen Bool
+prop_getConflictOlds f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (_,confLists) = getChangeHConfs ch1s ch2s
+   return $ all (\olds -> isInfixOf olds (contents f))
+                           (map getConflictOlds confLists)
+
+tester :: IO ()
+tester = do
+   files <- sample' (arbitrary `suchThat` (not . null . contents))
+   let f = files !! 3
+   listOfChs <- sample' $ ((\f -> liftM2 (,) (mkGoodCH 0 f) (mkGoodCH 0 f))
+         f) `suchThat` (not . null . snd)
+   let conflictLists = map (snd . getChangeHConfs)
+   let failures = filter (thing (contents f))
+   print f
+   print listOfChs
+   where thing :: [String] -> [Conflict [ChangeHunk]] -> Bool
+         thing confLists conts = all (\olds -> isInfixOf olds conts)
+                                (map getConflictOlds confLists)
+
 
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
 prop_parallelPatchSequencing :: ParallelPatches -> Bool
