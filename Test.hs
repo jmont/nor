@@ -37,9 +37,10 @@ instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
 
 instance Arbitrary File where
     arbitrary = do
-        len <- arbitrary
-        conts <- arbitrary `suchThat` ((< len) . length)
-        File <$> arbitrary <*> return conts
+        NonNegative len <- arbitrary
+        conts <- arbitrary
+        NonEmpty fpath <- arbitrary
+        return $ File fpath (take len conts)
 
 mkGoodPatch :: Gen File -> Gen [Patch]
 mkGoodPatch gf = do
