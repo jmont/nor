@@ -100,11 +100,13 @@ editsToChangeHunks es = eTCH es 0
          getStr (D str) = str
          getStr (I str) = str
          getStr C = error "this can't happen"
+
          eTCH es lineNum =
             let (keeps, rest) = span eqC es
                 (changes, rest') = span neqC rest
                 (dels, adds)  = span eqD changes
-                ch = ChangeHunk (lineNum + length keeps) (map getStr dels) (map getStr adds)
+                ch = ChangeHunk (lineNum + length keeps)
+                        (map getStr dels) (map getStr adds)
              in if (length adds + length dels) == 0
                  then []
                  else ch : eTCH rest' (offset ch + length dels)
