@@ -42,6 +42,7 @@ instance Arbitrary File where
         NonEmpty fpath <- arbitrary
         return $ File fpath (take len conts)
 
+-- Generates several patches given a file that don't conflict
 mkGoodPatch :: File -> Gen [Patch]
 mkGoodPatch f = do
     frequency
@@ -51,6 +52,7 @@ mkGoodPatch f = do
             chs <- (mkGoodCH 0 f)
             return $ map ((AP (path f)) . Change) chs) ]
 
+-- Generates several random change hunks given a file that don't conflict
 mkGoodCH :: Int -> File -> Gen [ChangeHunk]
 mkGoodCH startoff f = do
     if (startoff >= length (contents f) - 1)
@@ -60,20 +62,26 @@ mkGoodCH startoff f = do
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
             liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
-
     where slice  :: Int -> Int -> [a] -> [a]
           slice from to xs = take (to - from + 1) (drop from xs)
 
+-- forall x,y in ChangeHunk list, x does not conflict with y
 noConflicts :: [ChangeHunk] -> Bool
 noConflicts chs =
    foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
 
+-- A conflicting set of change hunks (Conflict ch1s ch2s) obeys the following:
+-- no conflicts within ch1s or within ch2s
+-- forall x in ch1s there exits y in ch2s where x conflicts with y
+-- forall y in ch2s there exits x in ch1s where y conflicts with x
 isConflictSet :: Conflict [ChangeHunk] -> Bool
 isConflictSet (Conflict ch1s ch2s) =
    noConflicts ch1s && noConflicts ch2s &&
    foldr (\ch acc -> any (conflicts ch) ch1s && acc) True ch2s &&
    foldr (\ch acc -> any (conflicts ch) ch2s && acc) True ch1s
 
+-- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
+-- not contain any conflicting CHs
 prop_noConfs :: File -> Gen Property
 prop_noConfs f = do
    ch1s <- mkGoodCH 0 f
@@ -122,14 +130,17 @@ prop_maximalConflictSet f = do
          chIndependentOfConfs confs ch =
             all (\conf -> chIndependentOfConf conf ch) confs
 
+-- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
 prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
 
+-- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
 prop_getApplyEdits x y =
     let es = getEdits x y
     in applyEdits es x == y
 
+-- Ensures isomoprhism between canonical edits and changeHunks
 prop_changeHunkEditIso :: [String] -> [String] -> Property
 prop_changeHunkEditIso x y =
         let es = getEdits x y
