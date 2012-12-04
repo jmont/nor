@@ -20,6 +20,22 @@ type ParallelPatches = [Patch]
 
 newtype SequentialPatch = SP Patch deriving Eq
 
+data PatchAction = RemoveEmptyFile
+                 | CreateEmptyFile
+                 | Change ChangeHunk
+                 deriving (Show, Eq, Ord)
+
+data ChangeHunk = ChangeHunk { offset :: Int -- Starting Line Number
+                             , old :: [String] -- List of old lines
+                             , new :: [String] -- list of new lines
+                             } deriving (Show, Eq)
+instance Ord ChangeHunk where
+   compare c1 c2 = compare (offset c1) (offset c2)
+
+data Conflict t = Conflict { firstConf :: t
+                           , secondConf :: t
+                           } deriving (Show, Eq)
+
 class Conflictable t where
     conflicts :: t -> t -> Bool
 
@@ -32,21 +48,6 @@ instance Conflictable ChangeHunk where
        | offset ch1 > offset ch2 =
           offset ch2 + length (old ch2) > offset ch1 -- 2 overlaps with 1
 
-data Conflict t = Conflict { firstConf :: t
-                           , secondConf :: t
-                           } deriving (Show, Eq)
-
-data PatchAction = RemoveEmptyFile
-                 | CreateEmptyFile
-                 | Change ChangeHunk
-                 deriving (Show, Eq, Ord)
-
-data ChangeHunk = ChangeHunk { offset :: Int -- Starting Line Number
-                             , old :: [String] -- List of old lines
-                             , new :: [String] -- list of new lines
-                             } deriving (Show, Eq)
-instance Ord ChangeHunk where
-   compare c1 c2 = compare (offset c1) (offset c2)
 
 ppath :: Patch -> Path
 ppath (AP p _) = p
