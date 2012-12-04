@@ -196,6 +196,8 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
 
+--Runs the given command with args to alter the world.
+--Ensures that if mid-rebase, no other commands can be used.
 dispatch :: World -> String -> [String] -> IO (World)
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
 dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
