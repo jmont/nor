@@ -102,6 +102,26 @@ ancestorList core c1@(Commit (Just pid) _ _) =
     let Just p = commitById core pid
     in c1:(ancestorList core p)
 
+patchFromFiles :: [File] -> [File] -> ParallelPatches
+patchFromFiles fas fbs =
+    let --Assume everything in A has been deleted
+        aPatchMap = foldr (\f pm -> Map.insert (path f)
+             [Change (ChangeHunk 0 (contents f) []), RemoveEmptyFile] pm)
+             Map.empty fas
+        --Update map, anything not found is new
+        --If exists, then change to only a changehunk
+        patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
+                   aPatchMap fbs
+        ps = Map.foldrWithKey (\path pActions acc ->
+                (map (AP path) pActions) ++ acc) [] patchMap
+    in ps
+    where alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
+          alterFun newFile Nothing =
+             Just $ [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
+          alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
+             Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
+          alterFun _ _ = error "Can't Happen"
+
 --Return a patch from commit a to commit b
 patchFromCommits :: ObjectStore File -> Commit -> Commit -> ParallelPatches
 patchFromCommits os ca cb =
@@ -111,25 +131,9 @@ patchFromCommits os ca cb =
           onlyB = hashesB Set.\\ hashesA
           filesOnlyA = getFilesForSet os onlyA
           filesOnlyB = getFilesForSet os onlyB
-          --Assume everything in A has been deleted
-          aPatchMap = foldr (\f pm -> Map.insert (path f)
-               [Change (ChangeHunk 0 (contents f) []), RemoveEmptyFile] pm)
-               Map.empty filesOnlyA
-          --Update map, anything not found is new
-          --If exists, then change to only a changehunk
-          patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
-                     aPatchMap filesOnlyB
-          patch = Map.foldrWithKey (\path pActions acc ->
-                  (map (AP path) pActions) ++ acc) [] patchMap
-          in patch
+          in patchFromFiles filesOnlyA filesOnlyB
    where getFilesForSet os hashesSet =
           (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
-         alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
-         alterFun newFile Nothing =
-            Just $ [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
-         alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
-            Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
-         alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
