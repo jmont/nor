@@ -5,6 +5,7 @@ import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
 import Control.Applicative
 import Control.Monad
+import Data.List
 
 instance (Eq t, Arbitrary t) => Arbitrary (Edit t) where
     arbitrary = oneof [return C,
@@ -13,8 +14,10 @@ instance (Eq t, Arbitrary t) => Arbitrary (Edit t) where
 
 instance Arbitrary ChangeHunk where
     arbitrary = do
-        NonNegative n <- arbitrary `suchThat` (<100)
-        ChangeHunk <$> return n <*> arbitrary <*> arbitrary
+        NonNegative n <- arbitrary `suchThat` (<50) -- offset
+        olds <- arbitrary `suchThat` ((<20) . length) -- lines changed
+        news <- arbitrary `suchThat` ((<20) . length)
+        return $ ChangeHunk n olds news
 
 instance Arbitrary PatchAction where
     arbitrary = oneof [return CreateEmptyFile,
@@ -40,4 +43,13 @@ prop_changeHunkEditIso :: [String] -> [String] -> Property
 prop_changeHunkEditIso x y =
         let es = getEdits x y
             chs = editsToChangeHunks es
-        in classify ((null x) ||  (null y)) "Either empty" $ changeHunksToEdits chs (length x) 0 == es
+        in classify ((null x) ||  (null y)) "Either empty"
+            (changeHunksToEdits chs (length x) 0 == es)
+
+--sPP [1,2,3] == sPP [any permutation of 1,2,3]
+prop_parallelPatchSequencing :: ParallelPatches -> Bool
+prop_parallelPatchSequencing ps =
+    let onlyCHs = take 5 $ filter (\(AP _ x) -> (x /= RemoveEmptyFile) && (x /= CreateEmptyFile)) ps
+        patchesP = map sequenceParallelPatches (permutations onlyCHs)
+    in foldr (\p acc -> p == (head patchesP) && acc)
+        True (tail patchesP)

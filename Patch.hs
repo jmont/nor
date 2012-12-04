@@ -12,13 +12,13 @@ data Edit t = C -- Copy current input line to output
 
 type Path = String
 
-data AtPath t = AP Path t deriving Show
+data AtPath t = AP Path t deriving (Eq, Show)
 
 type Patch = AtPath PatchAction
 
 type ParallelPatches = [Patch]
 
-newtype SequentialPatch = SP Patch
+newtype SequentialPatch = SP Patch deriving Eq
 
 class Conflictable t where
     conflicts :: t -> t -> Bool
