@@ -81,7 +81,7 @@ prop_noConfs f = do
    let (noConfs,_) = getChangeHConfs ch1s ch2s
    return $ classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
 
--- forall x, exists y s.t. x conflicts y. x,y in a conflict set
+-- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
 prop_eachHasConflict :: File -> Gen Property
 prop_eachHasConflict f = do
    ch1s <- mkGoodCH 0 f
@@ -90,9 +90,37 @@ prop_eachHasConflict f = do
    let b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
    return $ classify (null confLists) "Nothing conflicts" b
 
--- Forall x in a conflict, forall y not in the conflict x does not
+--Ugly property! Should some of this be in the  type class conflictable?
+--Also 50-70% are fairly "easy" cases
+
+-- Forall x in a conflict, forall y not in the conflict, x does not
 -- conflict with y
--- prop SOMETHING
+prop_maximalConflictSet :: File -> Gen Property
+prop_maximalConflictSet f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
+   let allMaximalConflicts = foldr (\conf acc ->
+        let restConf = filter (/= conf) confLists
+            fstInd = all (chIndependentOfConfs restConf) (firstConf conf)
+            sndInd = all (chIndependentOfConfs restConf) (secondConf conf)
+            noConfsInd = all (chIndependentOf noConfs)
+                           (firstConf conf ++ secondConf conf)
+            isMaximalConflict = fstInd && sndInd && noConfsInd
+        in isMaximalConflict && acc) True confLists
+   return $ classify (null confLists || null noConfs)
+      "Either empty conflict list or empty non-conflict list"
+      allMaximalConflicts
+   --Independent meaning the ch doesn't conflict with any in the conflict set
+   where chIndependentOf :: [ChangeHunk] -> ChangeHunk -> Bool
+         chIndependentOf ch1s ch =
+            noConflicts (ch:ch1s)
+         chIndependentOfConf :: Conflict [ChangeHunk] -> ChangeHunk -> Bool
+         chIndependentOfConf (Conflict ch1s ch2s) ch =
+            chIndependentOf ch1s ch && chIndependentOf ch2s ch
+         chIndependentOfConfs :: [Conflict [ChangeHunk]] -> ChangeHunk -> Bool
+         chIndependentOfConfs confs ch =
+            all (\conf -> chIndependentOfConf conf ch) confs
 
 prop_mkGoodCh :: File -> Gen Bool
 prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts

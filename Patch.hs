@@ -34,7 +34,7 @@ instance Conflictable ChangeHunk where
 
 data Conflict t = Conflict { firstConf :: t
                            , secondConf :: t
-                           } deriving (Show)
+                           } deriving (Show, Eq)
 
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
