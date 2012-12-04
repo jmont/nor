@@ -245,17 +245,19 @@ getChangeHConfs ch1s ch2s =
                   ([],[]) (map vertexMap vertexList)
 
 --Doesn't introduce new conflicts with other stuff
---Sort them!
-
 conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
-conflictAsPatch (AP cpath (c@(Conflict ch1s ch2s))) =
+conflictAsPatch (AP p conf) = AP p $ Change $ conflictAsCH conf
+
+--Sort them!
+conflictAsCH :: Conflict [ChangeHunk] -> ChangeHunk
+conflictAsCH (c@(Conflict ch1s ch2s)) =
    let olds = getConflictOlds c
        off = min (offset (head ch1s)) (offset (head ch2s))
        editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
        editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
        appliedCh1 = applyEdits editsCh1 olds
        appliedCh2 = applyEdits editsCh2 olds
-   in AP cpath $ Change $ ChangeHunk off olds
+   in ChangeHunk off olds
          (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
 
 --Returns the olds for the conflict interval
