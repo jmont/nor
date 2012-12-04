@@ -132,19 +132,19 @@ patchFromCommits os ca cb =
          alterFun _ _ = error "Can't Happen"
 
 --Assumes SEQUENTIAL PATCH
-applyPatch :: Patch -> [File] -> [File]
-applyPatch (AP ppath CreateEmptyFile) fs = File ppath [""]:fs
-applyPatch (AP ppath RemoveEmptyFile) [] =
+applyPatch :: SequentialPatch -> [File] -> [File]
+applyPatch (SP (AP ppath CreateEmptyFile)) fs = File ppath [""]:fs
+applyPatch (SP (AP ppath RemoveEmptyFile)) [] =
    error ("Deleting a file that doesn't exist:" ++ ppath)
-applyPatch p@(AP ppath RemoveEmptyFile) (f:fs) =
+applyPatch p@(SP (AP ppath RemoveEmptyFile)) (f:fs) =
    if ppath == path f
    then if null (contents f)
         then fs
         else error ("Deleting non-empty file" ++ ppath)
    else f:applyPatch p fs
-applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) [] =
+applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) [] =
    error ("ChangeHunk doesn't correspond to any file: " ++ ppath)
-applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) (f:fs) =
+applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
    if ppath == path f
    then let preHunk = take o (contents f)
             rest = drop o (contents f)
@@ -155,7 +155,7 @@ applyPatch p@(AP ppath (Change (ChangeHunk o dels adds))) (f:fs) =
             in File (path f) newcont:fs
             else f:applyPatch p fs
 
-applyPatches :: [Patch] -> [File] -> [File]
+applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->

@@ -16,6 +16,8 @@ data AtPath t = AP Path t deriving Show
 
 type Patch = AtPath PatchAction
 
+newtype SequentialPatch = SP Patch
+
 class Conflictable t where
     conflicts :: t -> t -> Bool
 
@@ -132,14 +134,14 @@ changeHunksToEdits chs fileLength minoff =
 
 --This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
-sequenceParallelPatches :: [Patch] -> [Patch]
+sequenceParallelPatches :: [Patch] -> [SequentialPatch]
 sequenceParallelPatches [] = []
-sequenceParallelPatches [p] = [p]
+sequenceParallelPatches [p] = [SP p]
 sequenceParallelPatches ps =
          let rems = filter eqRemEFile ps
              cres = filter eqCreEFile ps
              chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
-         in cres ++ sortBy sortCh chs ++ rems
+         in map SP $ cres ++ sortBy sortCh chs ++ rems
          where
          eqRemEFile (AP _ RemoveEmptyFile) = True
          eqRemEFile _ = False
