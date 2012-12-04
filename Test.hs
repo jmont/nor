@@ -42,30 +42,34 @@ instance Arbitrary File where
         NonEmpty fpath <- arbitrary
         return $ File fpath (take len conts)
 
-mkGoodPatch :: Gen File -> Gen [Patch]
-mkGoodPatch gf = do
-    f <- gf
+mkGoodPatch :: File -> Gen [Patch]
+mkGoodPatch f = do
     frequency
         [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
                                  RemoveEmptyFile])),
           (9, do
-            chs <- (mkGoodCH gf 0)
+            chs <- (mkGoodCH 0 f)
             return $ map ((AP (path f)) . Change) chs) ]
 
-
-mkGoodCH :: Gen File -> Int -> Gen [ChangeHunk]
-mkGoodCH gf startoff = do
-    f <- gf
-    if (startoff == length (contents f) - 1)
+mkGoodCH :: Int -> File -> Gen [ChangeHunk]
+mkGoodCH startoff f = do
+    if (startoff >= length (contents f) - 1)
     then return []
     else do off <- choose (startoff, length . contents $ f)
             endDellOff <- choose (off, (length (contents f)))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM ((ChangeHunk off dels news) :) $ mkGoodCH gf (endDellOff + 1)
+            liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
 
     where slice  :: Int -> Int -> [a] -> [a]
           slice from to xs = take (to - from + 1) (drop from xs)
+
+noConflicts :: [ChangeHunk] -> Bool
+noConflicts chs =
+   foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
+
+prop_mkGoodCh :: File -> Gen Bool
+prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
 
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
 prop_getApplyEdits x y =
