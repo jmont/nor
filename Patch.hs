@@ -16,6 +16,18 @@ data AtPath t = AP Path t deriving Show
 
 type Patch = AtPath PatchAction
 
+class Conflictable t where
+    conflicts :: t -> t -> Bool
+
+instance Conflictable ChangeHunk where
+    conflicts ch1 ch2
+       | ch1 == ch2 = False -- Same hunk
+       | offset ch1 == offset ch2 = True -- Operate on the same lines
+       | offset ch1 < offset ch2 =
+          offset ch1 + length (old ch1) > offset ch2 -- 1 overlaps with 2
+       | offset ch1 > offset ch2 =
+          offset ch2 + length (old ch2) > offset ch1 -- 2 overlaps with 1
+
 data Conflict t = Conflict { firstConf :: t
                            , secondConf :: t
                            } deriving (Show)
@@ -169,15 +181,6 @@ mergeParallelPatches p1s p2s =
                          (noConfsP1 ++ noConfsP2,[]) possConfsByPath
       in result
   where groupPatch (AP p1 _) (AP p2 _) = p1 == p2
-
-conflicts :: ChangeHunk -> ChangeHunk -> Bool
-conflicts ch1 ch2
-   | ch1 == ch2 = False -- Same hunk
-   | offset ch1 == offset ch2 = True --Operate on the same lines
-   | offset ch1 < offset ch2 =
-      offset ch1 + length (old ch1) > offset ch2-- 1 overlaps with 2
-   | offset ch1 > offset ch2 =
-      offset ch2 + length (old ch2) > offset ch1-- 2 overlaps with 1
 
 --Works on a Path
 findConflictsPA :: [PatchAction] -> [PatchAction] ->
