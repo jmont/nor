@@ -15,24 +15,31 @@ import qualified Control.Monad.State as State
 import Control.Applicative
 import Patch
 
--- (Head Commit, List of commits to Rebase)
-data Ephemera = Ephemera { headC :: Commit -- current checked-out commit
-                         , toRebase :: [Commit] --commits that need to be rebased
+-- The changing part of the repository, allows the repository to switch states.
+data Ephemera = Ephemera { headC :: Commit -- Current checked-out commit
+                         , toRebase :: [Commit]
+                            -- Mid-rebase, the commits that still need to be
+                            -- handled.
                          } deriving Show
 
 instance Serialize Ephemera where
    put (Ephemera h toR) = put h >> put toR
    get = Ephemera <$> get <*> get
 
+-- The all information in the repository. An append-only Core, and a changing
+-- Ephemera.
 type World = (Core, Ephemera)
 
+-- An "empty" World with a single empty Commit as the head.
 initWorld :: World
 initWorld = let core@(commitSet,os) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
+-- Location in which to save program data.
 progDirPath = "./.nor"
 worldPath = progDirPath ++ "/world"
 
+-- Serialize the world to the filesystem.
 saveWorld :: World -> IO ()
 saveWorld w = do
     handle <- openFile worldPath WriteMode
@@ -64,11 +71,12 @@ getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
---Adds a new commit to the world containing the files specified.
---If "-a" is the first argument, implicitly commit the current head's files.
---The parent of the new commit is the current head.
---The new commit becomes the current head.
-commit :: World -> [String] -> IO (World)
+
+-- Adds a new commit to the world containing the files specified.
+-- If "-a" is the first argument, implicitly commit the current head's files.
+-- The parent of the new commit is the current head.
+-- The new commit becomes the current head.
+commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
     let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
@@ -82,46 +90,51 @@ commit w@(core, eph) names = do
     putStrLn $ show (cid newHead)
     return w'
 
-
-
+-- Output the head commit and all other commits.
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
     putStrLn $ "HEAD: " ++ (show (cid (headC eph)))
-    mapM (putStrLn.show) (Set.toList commits)
+    mapM (putStrLn . show) (Set.toList commits)
     return ()
 
---check if file exists
+-- Remove the file in the filesystem at the File's path.
+deleteFile :: File -> IO ()
 deleteFile (File p _) = do
     fileExists <- doesFileExist p
     when fileExists $ removeFile p
 
+-- Remove the file in the filesystem at path of each File.
 deleteFiles :: [File] -> IO ()
 deleteFiles fs = do
     mapM deleteFile fs
     return ()
 
---create file if it doesnt exsit....
+-- Write the contents of the File to its path in the filesystem.
+restoreFile :: File -> IO ()
 restoreFile (File p cs) = do
     handle <- openFile p WriteMode
     hPutStr handle $ unlines cs
     hClose handle
 
+-- Write the contents of multiple Files to their path in the filesystem.
 restoreFiles :: [File] -> IO ()
 restoreFiles fs = do
     mapM restoreFile fs
     return ()
 
-checkout :: World -> [String] -> IO (World)
-checkout w@((comSet, os), eph) [hh] = do
+-- Replace tracked files with the state of the files in the commit
+-- corresponding to the specified hash. This commit is made the head commit.
+checkout :: World -> [String] -> IO World
+checkout w@((comSet, os), eph) [hh] =
     let h = O.hexToHash hh
-    let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
-    let files = map (O.getObject os) (hashes com)
-    let Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
-    let Just rFiles =  sequence $ map (O.getObject os) (hashes com)
-    deleteFiles dFiles
-    restoreFiles rFiles
-    putStrLn $ "Updated repo to " ++ hh
-    return ((comSet, os), Ephemera com (toRebase eph))
+        com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
+        files = map (O.getObject os) (hashes com)
+        Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
+        Just rFiles = sequence $ map (O.getObject os) (hashes com)
+    in do deleteFiles dFiles
+          restoreFiles rFiles
+          putStrLn $ "Updated repo to " ++ hh
+          return ((comSet, os), Ephemera com (toRebase eph))
 
 files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
@@ -134,7 +147,7 @@ files w@((comSet, os), headCom) [hh] = do
 
 rebase :: World -> [String] -> IO (World)
 rebase (core@(comSet,os), eph) ["--continue"] =
-   --implicit commit
+   -- implicit commit
    let toPaths = getPaths (headC eph)
        fromPaths = getPaths . head . toRebase $ eph
        pathSet = Set.fromList (fromPaths ++ toPaths)
