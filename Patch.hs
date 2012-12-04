@@ -149,6 +149,7 @@ sequenceParallelPatches ps =
          eqRemEFile _ = False
          eqCreEFile (AP _ CreateEmptyFile) = True
          eqCreEFile _ = False
+
          sortCh :: Patch -> Patch -> Ordering
          sortCh (AP p1 ch1) (AP p2 ch2) =
             case compare p1 p2 of

@@ -5,7 +5,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
 import Data.List
-import Diff
 import Data.Algorithm.Diff
 import Patch
 import qualified Data.Set as Set
