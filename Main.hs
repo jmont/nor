@@ -46,27 +46,30 @@ saveWorld w = do
     S.hPutStr handle $ encode w
     hClose handle
 
-getWorld' :: IO (Either String World)
-getWorld' = E.catch
-    (do handle <- openFile worldPath ReadMode
-        encodedW <- S.hGetContents handle
-        hClose handle
-        return $ decode encodedW)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >> (return $ Left ""))
-
-createProgDir :: IO ()
-createProgDir = E.catch
-    (createDirectory progDirPath)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)))
-
-getWorld :: IO (World)
+-- Unserialize the World from the filesystem. If no such serialized file
+-- exists, create the directory in which to save it, and use an empty World.
+getWorld :: IO World
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
         Left err -> createProgDir >> (return initWorld)
         Right w -> return w
+    where getWorld' :: IO (Either String World)
+          getWorld' = E.catch
+              (do handle <- openFile worldPath ReadMode
+                  encodedW <- S.hGetContents handle
+                  hClose handle
+                  return $ decode encodedW)
+              (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >>
+                  (return $ Left "No World found."))
 
-getFile :: String -> IO(File)
+-- Create the directory in which to save program data.
+createProgDir :: IO ()
+createProgDir = createDirectory progDirPath
+
+-- Create a File with contents of the file at the specified path in the
+-- filesystem. Error if the file doesn't exist.
+getFile :: String -> IO File
 getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
