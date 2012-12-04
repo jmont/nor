@@ -77,3 +77,9 @@ p14 = editsToPatch (getEdits m1 m4) "test"
 p15 = editsToPatch (getEdits m1 m5) "test"
 (noConfs,confs) = p13 >||< p14
 
+n0 = words "a b c d e f g h"
+n1 = words "a 0 2 d 4 6 8 h"
+n2 = words "a b 1 3 5 f 7 h"
+n01 = editsToPatch (getEdits n0 n1) "test"
+n02 = editsToPatch (getEdits n0 n2) "test"
+(nnoConfs,nconfs) = n01 >||< n02
