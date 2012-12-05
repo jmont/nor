@@ -27,18 +27,15 @@
 
 * ![](img/git_crazy_graph_rebase.svg)
 
-## Git is Crazy.
+## Git is Crazy
 
-* Why is this so complex?  (300k lines of B P C)
+* Why is this so complex?
 
 * What strategies yield simplification?
 
 * These questions are what we're trying to answer by building nor.
 
-    * Representation of changes to files can simplify conflict detection & resolution
-    * Simplify the problem of conflict detection and resolution.
-
-
+* Specifically: How can the representation of changes can simplify conflict detection & resolution?
 
 ## Nor
 * Lightweight command line version control system
@@ -67,8 +64,6 @@ data Edit = C -- Copy current input line to output
     * see which changes can be applied smoothly
     * which changes might interefere with others
 
-* Patch := Path + PatchAction
-
 * ~~~~~~ {.haskell}
 data PatchAction = RemoveEmptyFile
                  | CreateEmptyFile
@@ -77,6 +72,8 @@ data PatchAction = RemoveEmptyFile
                               , new :: [String] -- List of new lines
                               }
 ~~~~~~
+
+* Edits and ChangeHunks are isomorphic
 
 ## Patches: Parallel vs Sequential
 
@@ -87,7 +84,7 @@ data PatchAction = RemoveEmptyFile
 * Sequential patches - sequence of patches whose state referenced depends on
   the application of the previous patches.
 
-* Isomorphism?
+* Easiliy convert from parallel to sequential
 
 * Only sequential patches can be applied
 
@@ -97,15 +94,22 @@ data PatchAction = RemoveEmptyFile
 
 * Conflict detection is easy between two sets of parallel patches
 
-* ![](img/parallel_patch.svg)
+* ![](img/parallel_patch_file.svg)
 
 * Two patches confict when they modify overlapping lines in the original file
 
 * Conflicts are more than just pairs of patches
 
-## Conflicts
+## Conflicts 1
+> * ![](img/parallel_patch_file.svg)
 
-* ![](img/parallel_patch_file.svg)
+> * No-line image
+
+## Conflicts 2
+
+> * ![](img/parallel_patch_file.svg)
+
+> * ![](img/parallel_patch.svg)
 
 ## Conflict Resolution
 
