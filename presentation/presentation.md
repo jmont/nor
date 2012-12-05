@@ -65,8 +65,8 @@
 
 * ~~~~~~ {.haskell}
 data Edit = C -- Copy current input line to output
-            | I String -- Insert argument line into output
-            | D String -- Delete current input line which must match
+          | I String -- Insert argument line into output
+          | D String -- Delete current input line which must match
 ~~~~~~
 
 ## Nor - Patch
@@ -78,11 +78,11 @@ data Edit = C -- Copy current input line to output
 
 * ~~~~~~ {.haskell}
 data PatchAction = RemoveEmptyFile
-                   | CreateEmptyFile
-                   | ChangeHunk { offset :: Int -- Starting Line Number
-                                , old :: [String] -- List of old lines
-                                , new :: [String] -- List of new lines
-                                }
+                 | CreateEmptyFile
+                 | ChangeHunk { offset :: Int -- Starting Line Number
+                              , old :: [String] -- List of old lines
+                              , new :: [String] -- List of new lines
+                              }
 ~~~~~~
 
 ## Patches: Parallel vs Sequential
