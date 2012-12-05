@@ -37,8 +37,7 @@
 
 * These questions are what we're trying to answer by building nor.
 
-    * Specifically, we will focus on the representation of changes to files 
-    
+    * Representation of changes to files can simplify conflict detection & resolution
     * Simplify the problem of conflict detection and resolution.
 
 * ![](img/git_crazy_graph.svg)
