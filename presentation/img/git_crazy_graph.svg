@@ -12,20 +12,19 @@
 <g>
 	<g>
 		
-			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="273.275" y1="166.008" x2="171.073" y2="200.778"/>
+			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="273.275" y1="166.008" x2="171.073" y2="200.777"/>
 		<g>
-			<polygon fill="#006837" points="173.802,193.369 175.125,194.08 171.617,200.59 178.368,203.614 177.753,204.983 169.532,201.3 
+			<polygon fill="#006837" points="173.802,193.369 175.125,194.08 171.617,200.59 178.368,203.614 177.753,204.982 169.532,201.3 
 							"/>
 		</g>
 	</g>
 </g>
 <g>
 	<g>
-		
-			<line fill="none" stroke="#93278F" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="278.3" y1="280.094" x2="172.991" y2="239.7"/>
+		<line fill="none" stroke="#006837" stroke-width="2" stroke-miterlimit="10" x1="278.3" y1="280.094" x2="172.991" y2="239.7"/>
 		<g>
-			<polygon fill="#93278F" points="179.828,235.751 180.39,237.144 173.528,239.904 176.783,246.546 175.435,247.206 
-				171.472,239.116 			"/>
+			<polygon fill="none" stroke="#006837" stroke-width="2" stroke-miterlimit="10" points="179.828,235.751 180.39,237.145 
+				173.528,239.904 176.783,246.546 175.435,247.206 171.472,239.116 			"/>
 		</g>
 	</g>
 </g>
@@ -42,9 +41,9 @@
 <g>
 	<g>
 		
-			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="428.336" y1="211.147" x2="325.958" y2="171.877"/>
+			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="428.336" y1="211.146" x2="325.958" y2="171.877"/>
 		<g>
-			<polygon fill="#006837" points="332.795,167.929 333.358,169.321 326.497,172.082 329.75,178.724 328.403,179.383 
+			<polygon fill="#006837" points="332.795,167.929 333.358,169.321 326.497,172.082 329.75,178.725 328.403,179.383 
 				324.44,171.293 			"/>
 		</g>
 	</g>
@@ -80,47 +79,47 @@
 	</g>
 </g>
 <g>
-	<path fill="none" d="M328.317,174.522"/>
+	<path fill="none" d="M328.317,174.521"/>
 </g>
 <g>
 	<path fill="none" d="M440.008,221.725"/>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="126.125" cy="221.725" r="40.978"/>
-	<text transform="matrix(1 0 0 1 109.8369 238.5532)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">4</text>
+	<text transform="matrix(1 0 0 1 109.8369 238.5527)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">4</text>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="436.543" cy="221.725" r="40.977"/>
-	<text transform="matrix(1 0 0 1 425.6812 238.5532)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">7</text>
+	<text transform="matrix(1 0 0 1 425.6816 238.5527)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">7</text>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="278.302" cy="164.052" r="40.978"/>
-	<text transform="matrix(1 0 0 1 264.7266 180.8774)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">5</text>
+	<text transform="matrix(1 0 0 1 264.7266 180.877)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">5</text>
 </g>
 <g>
-	<circle fill="#FFFFFF" stroke="#93278F" stroke-width="2" stroke-miterlimit="10" cx="278.302" cy="280.096" r="40.978"/>
-	<text transform="matrix(1 0 0 1 264.7266 296.9238)" fill="#93278F" font-family="'Futura-Medium'" font-size="48.8255">6</text>
+	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="278.302" cy="280.096" r="40.978"/>
+	<text transform="matrix(1 0 0 1 264.7266 296.9238)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">6</text>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="58.124" cy="65.007" r="40.978"/>
-	<text transform="matrix(1 0 0 1 44.5479 81.8345)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">1</text>
+	<text transform="matrix(1 0 0 1 44.5479 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">1</text>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="207.195" cy="65.007" r="40.978"/>
-	<text transform="matrix(1 0 0 1 193.6191 81.8345)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">2</text>
+	<text transform="matrix(1 0 0 1 193.6191 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">2</text>
 </g>
 <g>
 	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="357.544" cy="65.007" r="40.979"/>
-	<text transform="matrix(1 0 0 1 343.9683 81.8345)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">3</text>
+	<text transform="matrix(1 0 0 1 343.9688 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">3</text>
 </g>
 <g>
-	<path fill="#FFFFFF" stroke="#0000FF" stroke-miterlimit="10" d="M405.124,44.552c0,1.935-1.803,3.506-4.027,3.506h-19.201
-		c-2.225,0-4.029-1.571-4.029-3.506V19.689c0-1.935,1.805-3.506,4.029-3.506h19.201c2.225,0,4.027,1.571,4.027,3.506V44.552z"/>
-	<text transform="matrix(1 0 0 1 381.4849 42.4497)" fill="#0000FF" font-family="'Futura-Medium'" font-size="27.1253">A</text>
+	<path fill="#FFFFFF" stroke="#0000FF" stroke-miterlimit="10" d="M405.124,44.552c0,1.935-1.803,3.506-4.027,3.506h-19.2
+		c-2.226,0-4.029-1.571-4.029-3.506V19.689c0-1.935,1.805-3.506,4.029-3.506h19.2c2.226,0,4.027,1.571,4.027,3.506V44.552z"/>
+	<text transform="matrix(1 0 0 1 381.4844 42.4492)" fill="#0000FF" font-family="'Futura-Medium'" font-size="27.1253">A</text>
 </g>
 <g>
-	<path fill="#FFFFFF" stroke="#006837" stroke-miterlimit="10" d="M488.196,201.51c0,1.936-1.805,3.504-4.029,3.504h-19.199
-		c-2.225,0-4.029-1.568-4.029-3.504v-24.862c0-1.936,1.805-3.508,4.029-3.508h19.199c2.225,0,4.029,1.572,4.029,3.508V201.51z"/>
-	<text transform="matrix(1 0 0 1 466.5591 199.4087)" fill="#006837" font-family="'Futura-Medium'" font-size="27.1253">B</text>
+	<path fill="#FFFFFF" stroke="#006837" stroke-miterlimit="10" d="M488.196,201.51c0,1.936-1.806,3.504-4.029,3.504h-19.199
+		c-2.225,0-4.028-1.568-4.028-3.504v-24.861c0-1.937,1.805-3.508,4.028-3.508h19.199c2.225,0,4.029,1.571,4.029,3.508V201.51z"/>
+	<text transform="matrix(1 0 0 1 466.5586 199.4082)" fill="#006837" font-family="'Futura-Medium'" font-size="27.1253">B</text>
 </g>
 </svg>
