@@ -1,79 +1,213 @@
 module Test where
-import Nor
-import ObjectStore
-import qualified Data.Set as Set
-import Data.Algorithm.Diff
 import Patch
+import Test.QuickCheck
+import Test.QuickCheck.Gen
+import Test.QuickCheck.Arbitrary
+import Control.Applicative
+import Control.Monad
+import Data.List
+import Nor
+import Cases
 
---Diff Stuff
-a0 = ["a"]
-a1 = ["c", "b"]
-a2 = ["c", "c", "c"]
---cbcc
-da01 = getDiff a0 a1
-da02 = getDiff a0 a2
+instance (Eq t, Arbitrary t) => Arbitrary (Edit t) where
+    arbitrary = oneof [return C,
+                       liftM D arbitrary,
+                       liftM I arbitrary]
 
-b0 = ["a", "b", "c"]
-b1 = ["a", "b", "d"]
-b2 = ["a", "b", "e"]
---abde
-db01 = getDiff b0 b1
-db02 = getDiff b0 b2
+instance Arbitrary ChangeHunk where
+    arbitrary = do
+        NonNegative n <- arbitrary `suchThat` (<50) -- offset
+        olds <- arbitrary `suchThat` ((<20) . length) -- lines changed
+        news <- arbitrary `suchThat` ((<20) . length)
+        return $ ChangeHunk n olds news
 
-c0 = ["a", "b", "c"]
-c1 = ["b", "d"]
-c2 = ["b", "e"]
---bde
-dc01 = getDiff c0 c1
-dc02 = getDiff c0 c2
+instance Arbitrary PatchAction where
+    arbitrary = oneof [return CreateEmptyFile,
+                       return RemoveEmptyFile,
+                       liftM Change arbitrary]
 
-f0 = ["cat", "dog"]
-f1 = ["cat", "me", "cat", "hello"]
-f2 = ["cat", "dog", "matt", "JC"]
---cat me cat hello matt jc
-df01 = getDiff f0 f1
-df02 = getDiff f0 f2
+instance Arbitrary t => Arbitrary (AtPath t) where
+    arbitrary = do
+        NonEmpty s <- arbitrary
+        AP <$> return s <*> arbitrary
 
-g0 = ["matt","me"]
-g1 = ["hey","me"]
-g2 = ["bob","matt","hello","me"]
---hey bob hello me
-dg01 = getDiff g0 g1
-dg02 = getDiff g0 g2
+instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
+    arbitrary = do
+        x <- arbitrary
+        Conflict <$> return x <*> arbitrary `suchThat` (conflicts x)
 
-h0 = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
-h1 = ["A","b","C","d","E","f","G","h","I","j","K","l","M","n","O","p","Q","r","S","t","U","v","W","x","Y","z"]
-h2 = ["a","B","c","D","e","F","g","H","i","J","k","L","m","N","o","P","q","R","s","T","u","V","w","X","y","Z"]
---ABCDEFGHIJKLMNOPQRSTUVWXYZ
-dh01 = getDiff h0 h1
-dh02 = getDiff h0 h2
+instance Arbitrary File where
+    arbitrary = do
+        NonNegative len <- arbitrary
+        conts <- arbitrary
+        NonEmpty fpath <- arbitrary
+        return $ File fpath (take len conts)
 
-i0 = ["a","b","c","d","e"]
-i1 = ["a","b","b2","c","d","d2","e"]
-i2 = ["a","c","e"]
-i3 = ["b","d"]
-di01 = getDiff i0 i1
-di02 = getDiff i0 i2
-di03 = getDiff i0 i3
+-- Generates several patches given a file that don't conflict
+mkGoodPatch :: File -> Gen [Patch]
+mkGoodPatch f = do
+    frequency
+        [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
+                                 RemoveEmptyFile])),
+          (9, do
+            chs <- (mkGoodCH 0 f)
+            return $ map ((AP (path f)) . Change) chs) ]
 
-j0 = ["x","a","b","c","d","e","f","g","h","y"]
-j1 = ["x","0","1","2","d","6","7","8","h","y"]
-j2 = ["x","a","b","3","4","5","f","9","10","y"]
-j01 = editsToPatch (getEdits j0 j1) "test"
-j02 = editsToPatch (getEdits j0 j2) "test"
-(jnoConfs,jconfs) = j01 >||< j02
+-- Generates several random change hunks given a file that don't conflict
+mkGoodCH :: Int -> File -> Gen [ChangeHunk]
+mkGoodCH startoff f = do
+    if (startoff >= length (contents f) - 1)
+    then return []
+    else do off <- choose (startoff, length . contents $ f)
+            endDellOff <- choose (off, (length (contents f)))
+            let dels = slice off endDellOff (contents f)
+            news <- arbitrary
+            liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
 
-l0 = ["a","b","c"]
-l1 = ["x","a","d","c"]
-l2 = ["a","d","c"]
+slice :: Int -> Int -> [a] -> [a]
+slice from to xs = take (to - from + 1) (drop from xs)
 
-m1 = words "a b c"
-m2 = words "a b c e"
-m3 = words "q b c e"
-m4 = words "d b c"
-m5 = words "m n b c"
-p13 = editsToPatch (getEdits m1 m3) "test"
-p14 = editsToPatch (getEdits m1 m4) "test"
-p15 = editsToPatch (getEdits m1 m5) "test"
-(noConfs,confs) = p13 >||< p14
+-- forall x,y in ChangeHunk list, x does not conflict with y
+noConflicts :: [ChangeHunk] -> Bool
+noConflicts chs =
+   foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
 
+-- A conflicting set of change hunks (Conflict ch1s ch2s) obeys the following:
+-- no conflicts within ch1s or within ch2s
+-- forall x in ch1s there exits y in ch2s where x conflicts with y
+-- forall y in ch2s there exits x in ch1s where y conflicts with x
+isConflictSet :: Conflict [ChangeHunk] -> Bool
+isConflictSet (Conflict ch1s ch2s) =
+   noConflicts ch1s && noConflicts ch2s &&
+   foldr (\ch acc -> any (conflicts ch) ch1s && acc) True ch2s &&
+   foldr (\ch acc -> any (conflicts ch) ch2s && acc) True ch1s
+
+-- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
+-- not contain any conflicting CHs
+prop_noConfs :: File -> Property
+prop_noConfs f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,_) = getChangeHConfs ch1s ch2s
+   classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
+
+-- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
+prop_eachHasConflict :: File -> Property
+prop_eachHasConflict f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (_,confLists) = getChangeHConfs ch1s ch2s
+   let b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
+   classify (null confLists) "Nothing conflicts" b
+
+--Ugly property! Should some of this be in the  type class conflictable?
+--Also 50-70% are fairly "easy" cases
+
+-- Forall x in a conflict, forall y not in the conflict, x does not
+-- conflict with y
+prop_maximalConflictSet :: File -> Property
+prop_maximalConflictSet f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
+   let allMaximalConflicts = foldr (\conf acc ->
+        let restConf = filter (/= conf) confLists
+            fstInd = all (chIndependentOfConfs restConf) (firstConf conf)
+            sndInd = all (chIndependentOfConfs restConf) (secondConf conf)
+            noConfsInd = all (chIndependentOf noConfs)
+                           (firstConf conf ++ secondConf conf)
+            isMaximalConflict = fstInd && sndInd && noConfsInd
+        in isMaximalConflict && acc) True confLists
+   classify (null confLists || null noConfs)
+      "Either empty conflict list or empty non-conflict list"
+      allMaximalConflicts
+   --Independent meaning the ch doesn't conflict with any in the conflict set
+   where chIndependentOf :: [ChangeHunk] -> ChangeHunk -> Bool
+         chIndependentOf ch1s ch =
+            noConflicts (ch:ch1s)
+         chIndependentOfConf :: Conflict [ChangeHunk] -> ChangeHunk -> Bool
+         chIndependentOfConf (Conflict ch1s ch2s) ch =
+            chIndependentOf ch1s ch && chIndependentOf ch2s ch
+         chIndependentOfConfs :: [Conflict [ChangeHunk]] -> ChangeHunk -> Bool
+         chIndependentOfConfs confs ch =
+            all (\conf -> chIndependentOfConf conf ch) confs
+
+-- Tests our mkGoodCh to ensure no conflicts on same file
+prop_mkGoodCh :: File -> Gen Bool
+prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
+
+-- Applying . getEdits is the identity function
+prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
+prop_getApplyEdits x y =
+    let es = getEdits x y
+    in applyEdits es x == y
+
+-- Ensures isomoprhism between canonical edits and changeHunks
+prop_changeHunkEditIso :: [String] -> [String] -> Property
+prop_changeHunkEditIso x y =
+        let es = getEdits x y
+            chs = editsToChangeHunks es
+        in classify ((null x) || (null y)) "Either empty"
+            (changeHunksToEdits chs (length x) 0 == es)
+
+prop_getConflictOlds' :: File -> Gen Bool
+prop_getConflictOlds' f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (_,confLists) = getChangeHConfs ch1s ch2s
+   return $ all (\olds -> isInfixOf olds (contents f))
+                           (map getConflictOlds confLists)
+
+prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
+prop_getConflictOlds c0 c1 c2 =
+    let (_, confCHs) = generateAndMergeCHs c0 c1 c2
+    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+                     (map getConflictOlds confCHs)
+
+generateAndMergeCHs :: [String] -> [String] -> [String] ->
+    ([ChangeHunk], [Conflict [ChangeHunk]])
+generateAndMergeCHs c0 c1 c2 =
+    let c01 = editsToChangeHunks (getEdits c0 c1)
+        c02 = editsToChangeHunks (getEdits c0 c2)
+        (noConfs, confs) = getChangeHConfs c01 c02
+    in (noConfs, confs)
+
+-- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
+-- more conflicts
+prop_viewableConflict :: [String] -> [String] -> [String] -> Property
+prop_viewableConflict c0 c1 c2 =
+    let (noConfs, confs) = generateAndMergeCHs c0 c1 c2
+        viewableConflicts = map conflictAsCH confs
+    in classify (null confs) "Empty non-conflict list"
+            $ noConflicts (viewableConflicts ++ noConfs)
+
+prop_viewableConflict' :: File -> Gen Property
+prop_viewableConflict' f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
+   let viewableConflicts = map conflictAsCH confLists
+   return $ classify (null confLists) "Empty non-conflict list"
+      $ noConflicts (viewableConflicts ++ noConfs)
+
+--tester :: IO ()
+--tester = do
+--   files <- sample' (arbitrary `suchThat` (not . null . contents))
+--   let f = files !! 3
+--   listOfChs <- sample' $ ((\f -> liftM2 (,) (mkGoodCH 0 f) (mkGoodCH 0 f))
+--         f) `suchThat` (not . null . snd)
+--   let conflictLists = map (snd . getChangeHConfs)
+--   let failures = filter (thing (contents f))
+--   print f
+--   print listOfChs
+--   where thing :: [String] -> [Conflict [ChangeHunk]] -> Bool
+--         thing confLists conts = all (\olds -> isInfixOf olds conts)
+--                                (map getConflictOlds confLists)
+
+--sPP [1,2,3] == sPP [any permutation of 1,2,3]
+prop_parallelPatchSequencing :: ParallelPatches -> Bool
+prop_parallelPatchSequencing ps =
+    let onlyCHs = take 5 $ filter (\(AP _ x) -> (x /= RemoveEmptyFile) && (x /= CreateEmptyFile)) ps
+        patchesP = map sequenceParallelPatches (permutations onlyCHs)
+    in foldr (\p acc -> p == (head patchesP) && acc)
+        True (tail patchesP)
