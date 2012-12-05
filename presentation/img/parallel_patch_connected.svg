@@ -46,6 +46,9 @@
 	<text transform="matrix(1 0 0 1 325.0723 356.6011)" fill="#0000FF" font-family="'Futura-Medium'" font-size="61.6972">P</text>
 	<text transform="matrix(1 0 0 1 357.1572 356.6011)" fill="#0000FF" font-family="'Futura-Medium'" font-size="61.6972">6</text>
 </g>
+<line fill="none" stroke="#ED1C24" stroke-width="5" stroke-miterlimit="10" x1="237.291" y1="98.811" x2="115.213" y2="333.951"/>
+<line fill="none" stroke="#ED1C24" stroke-width="5" stroke-miterlimit="10" x1="115.213" y1="333.951" x2="360.445" y2="95.583"/>
+<line fill="none" stroke="#ED1C24" stroke-width="5" stroke-miterlimit="10" x1="360.445" y1="95.583" x2="237.291" y2="333.951"/>
 <g>
 	<path fill="#FFFFFF" stroke="#009245" stroke-width="2" stroke-miterlimit="10" d="M277.97,123.567
 		c0,3.704-2.677,6.708-5.979,6.708h-67.466c-3.303,0-5.98-3.004-5.98-6.708V64.776c0-3.705,2.678-6.708,5.98-6.708h67.466

@@ -94,22 +94,23 @@ data PatchAction = RemoveEmptyFile
 
 * Conflict detection is easy between two sets of parallel patches
 
+* Two patches confict when they modify overlapping lines in the original file
+
 * ![](img/parallel_patch_file.svg)
 
-* Two patches confict when they modify overlapping lines in the original file
+## Conflicts
 
 * Conflicts are more than just pairs of patches
 
-## Conflicts 1
 > * ![](img/parallel_patch_file.svg)
 
-> * No-line image
+> * ![](img/parallel_patch.svg) 
 
 ## Conflicts 2
 
 > * ![](img/parallel_patch_file.svg)
 
-> * ![](img/parallel_patch.svg)
+> * ![](img/parallel_patch_connected.svg)
 
 ## Conflict Resolution
 
