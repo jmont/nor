@@ -1,13 +1,18 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Test where
 import Patch
 import Test.QuickCheck
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
+import Test.QuickCheck.All
 import Control.Applicative
 import Control.Monad
 import Data.List
 import Nor
 import Cases
+
+-- Run all prop_* functions in quickCheck.
+runTests = $quickCheckAll
 
 instance (Eq t, Arbitrary t) => Arbitrary (Edit t) where
     arbitrary = oneof [return C,
