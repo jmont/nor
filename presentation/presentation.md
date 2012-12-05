@@ -120,7 +120,7 @@ data PatchAction = RemoveEmptyFile
 
 * maximal conflict sets => single patch
 
-* Image of "<<<< === >>>>"
+* ![](img/diff.svg) 
 
 ## Are we there yet?
 * With simple conflict detection & resolution, two things seem easy:
