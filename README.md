@@ -1,8 +1,10 @@
 nor
 ===
 
-To add new commands, edit Main.hs and pattern match the command's string in
-dispatch. Then write the actual function in the Nor module in Nor.hs
+A lightweight, functional approach to Version Control.
+
+Created by Matt Russell, Hashem Nasarat, and Juan Carlos Montemayor Elosua.
+Dec, 5, 2012 
 
 Package Requirements:
 cryptohash-0.7.8
