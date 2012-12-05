@@ -1,0 +1,34 @@
+% Nor -- A Lightweight and Functional Version-Control System
+% Matthew Russell, JC, Hashem Nasarat
+% December 5, 2012
+
+
+# Introduction
+- Academic literature leave much to be desired
+- Difficult problems are out there
+- Our thesis: Implementing a version control system will provide insight into the dificulties of rebase and merge. 
+
+
+# Overview
+- Problems in git
+- Representing changes
+- Conflicts
+- Rebase
+- Demo
+- Future
+
+# Git is Crazy
+- This stuff (rebase + merge) is hard!
+- Image here
+- One thing we've learned through this class is that git is crazy.
+- Why is this so complex?
+- What strategies yield simplification?
+
+# Nor
+- Like git
+    - state-based
+    - hashes
+    - shared syntax
+
+# Nor - Patches
+    - Diff CE 
