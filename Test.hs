@@ -132,17 +132,6 @@ prop_maximalConflictSet f = do
          chIndependentOfConfs confs ch =
             all (\conf -> chIndependentOfConf conf ch) confs
 
--- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
--- more conflicts
-prop_viewableConflict :: File -> Gen Property
-prop_viewableConflict f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
-   let viewableConflicts = map conflictAsCH confLists
-   return $ classify (null confLists) "Empty non-conflict list"
-      $ noConflicts (viewableConflicts ++ noConfs)
-
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
 prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
@@ -171,12 +160,35 @@ prop_getConflictOlds' f = do
 
 prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
 prop_getConflictOlds c0 c1 c2 =
-    let c01 = editsToPatch (getEdits c0 c1) "foo"
-        c02 = editsToPatch (getEdits c0 c2) "foo"
-        (_, confs) = c01 >||< c02
-        confCHs = map (\(AP _ c) -> c) confs
+    let (_, confCHs) = generateAndMergeCHs c0 c1 c2
     in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
                      (map getConflictOlds confCHs)
+
+generateAndMergeCHs :: [String] -> [String] -> [String] ->
+    ([ChangeHunk], [Conflict [ChangeHunk]])
+generateAndMergeCHs c0 c1 c2 =
+    let c01 = editsToChangeHunks (getEdits c0 c1)
+        c02 = editsToChangeHunks (getEdits c0 c2)
+        (noConfs, confs) = getChangeHConfs c01 c02
+    in (noConfs, confs)
+
+-- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
+-- more conflicts
+prop_viewableConflict :: [String] -> [String] -> [String] -> Property
+prop_viewableConflict c0 c1 c2 =
+    let (noConfs, confs) = generateAndMergeCHs c0 c1 c2
+        viewableConflicts = map conflictAsCH confs
+    in classify (null confs) "Empty non-conflict list"
+            $ noConflicts (viewableConflicts ++ noConfs)
+
+prop_viewableConflict' :: File -> Gen Property
+prop_viewableConflict' f = do
+   ch1s <- mkGoodCH 0 f
+   ch2s <- mkGoodCH 0 f
+   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
+   let viewableConflicts = map conflictAsCH confLists
+   return $ classify (null confLists) "Empty non-conflict list"
+      $ noConflicts (viewableConflicts ++ noConfs)
 
 --tester :: IO ()
 --tester = do

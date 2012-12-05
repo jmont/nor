@@ -249,10 +249,10 @@ getChangeHConfs ch1s ch2s =
 conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
 conflictAsPatch (AP p conf) = AP p $ Change $ conflictAsCH conf
 
---Sort them!
 conflictAsCH :: Conflict [ChangeHunk] -> ChangeHunk
-conflictAsCH (c@(Conflict ch1s ch2s)) =
-   let olds = getConflictOlds c
+conflictAsCH (c@(Conflict uch1s uch2s)) =
+   let (ch1s, ch2s) = (sort uch1s, sort uch2s)
+       olds = getConflictOlds c
        off = min (offset (head ch1s)) (offset (head ch2s))
        editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
        editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
