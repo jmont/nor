@@ -1,1 +1,1 @@
-pandoc -i --webtex -t slidy --smart -s presentation.txt -o presentation.html
+pandoc -i --webtex -t slidy --smart -s presentation.md -o presentation.html
