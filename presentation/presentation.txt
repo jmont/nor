@@ -39,6 +39,12 @@
 
     * Specifically, we will demonstrate how the representation of changes to files can simplify the problem of conflict detection and resolution.
 
+* ![](img/git_crazy_graph.svg)
+
+##Git is Crazy.
+
+* ![](img/git_crazy_graph_rebase.svg)
+
 ## Nor
 * Lightweight command line version control system
 
@@ -51,24 +57,24 @@
 * Similar command-line usage as Git
 
 ## Basic Diff
-> * Need to know how to get from one state to another
+* Need to know how to get from one state to another
 
-> * Standard diff algorithm produces an Edit for each line
+* Standard diff algorithm produces an Edit for each line
 
-~~~~~~ {.haskell}
+* ~~~~~~ {.haskell}
 data Edit = C -- Copy current input line to output
             | I String -- Insert argument line into output
             | D String -- Delete current input line which must match
 ~~~~~~
 
 ## Nor - Patch
-> * Break up edits
+* Break up edits
     * see which changes can be applied smoothly
     * which changes might interefere with others
 
-> * Patch := Path + PatchAction
+* Patch := Path + PatchAction
 
-~~~~~~ {.haskell}
+* ~~~~~~ {.haskell}
 data PatchAction = RemoveEmptyFile
                    | CreateEmptyFile
                    | ChangeHunk { offset :: Int -- Starting Line Number
@@ -96,13 +102,15 @@ data PatchAction = RemoveEmptyFile
 
 * Conflict detection is easy between two sets of parallel patches
 
+* ![](img/parallel_patch.svg)
+
 * Two patches confict when they modify overlapping lines in the original file
 
 * Conflicts are more than just pairs of patches
 
 ## Conflicts
 
-* Conflict diagrams
+* ![](img/parallel_patch_file.svg)
 
 ## Conflict Resolution
 
