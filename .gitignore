@@ -5,3 +5,4 @@
 nor
 *.test
 presentation.html
+dist/
