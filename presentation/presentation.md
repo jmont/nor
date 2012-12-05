@@ -21,15 +21,13 @@
 
 #. Demo
 
-## Git is Crazy?
-* This stuff (rebase + merge) is hard!
+## Is Git Crazy?
 
-* Image (prerebase) here
+* ![](img/git_crazy_graph.svg)
 
-* What should happen?
+* ![](img/git_crazy_graph_rebase.svg)
 
 ## Git is Crazy.
-* Image (postrebase) here
 
 * Why is this so complex?  (300k lines of B P C)
 
@@ -40,11 +38,7 @@
     * Representation of changes to files can simplify conflict detection & resolution
     * Simplify the problem of conflict detection and resolution.
 
-* ![](img/git_crazy_graph.svg)
 
-##Git is Crazy.
-
-* ![](img/git_crazy_graph_rebase.svg)
 
 ## Nor
 * Lightweight command line version control system
