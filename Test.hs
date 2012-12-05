@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Monad
 import Data.List
 import Nor
+import Cases
 
 instance (Eq t, Arbitrary t) => Arbitrary (Edit t) where
     arbitrary = oneof [return C,
@@ -160,28 +161,36 @@ prop_changeHunkEditIso x y =
         in classify ((null x) || (null y)) "Either empty"
             (changeHunksToEdits chs (length x) 0 == es)
 
-prop_getConflictOlds :: File -> Gen Bool
-prop_getConflictOlds f = do
+prop_getConflictOlds' :: File -> Gen Bool
+prop_getConflictOlds' f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (_,confLists) = getChangeHConfs ch1s ch2s
    return $ all (\olds -> isInfixOf olds (contents f))
                            (map getConflictOlds confLists)
 
-tester :: IO ()
-tester = do
-   files <- sample' (arbitrary `suchThat` (not . null . contents))
-   let f = files !! 3
-   listOfChs <- sample' $ ((\f -> liftM2 (,) (mkGoodCH 0 f) (mkGoodCH 0 f))
-         f) `suchThat` (not . null . snd)
-   let conflictLists = map (snd . getChangeHConfs)
-   let failures = filter (thing (contents f))
-   print f
-   print listOfChs
-   where thing :: [String] -> [Conflict [ChangeHunk]] -> Bool
-         thing confLists conts = all (\olds -> isInfixOf olds conts)
-                                (map getConflictOlds confLists)
+prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
+prop_getConflictOlds c0 c1 c2 =
+    let c01 = editsToPatch (getEdits c0 c1) "foo"
+        c02 = editsToPatch (getEdits c0 c2) "foo"
+        (_, confs) = c01 >||< c02
+        confCHs = map (\(AP _ c) -> c) confs
+    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+                     (map getConflictOlds confCHs)
 
+--tester :: IO ()
+--tester = do
+--   files <- sample' (arbitrary `suchThat` (not . null . contents))
+--   let f = files !! 3
+--   listOfChs <- sample' $ ((\f -> liftM2 (,) (mkGoodCH 0 f) (mkGoodCH 0 f))
+--         f) `suchThat` (not . null . snd)
+--   let conflictLists = map (snd . getChangeHConfs)
+--   let failures = filter (thing (contents f))
+--   print f
+--   print listOfChs
+--   where thing :: [String] -> [Conflict [ChangeHunk]] -> Bool
+--         thing confLists conts = all (\olds -> isInfixOf olds conts)
+--                                (map getConflictOlds confLists)
 
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
 prop_parallelPatchSequencing :: ParallelPatches -> Bool

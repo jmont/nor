@@ -4,6 +4,7 @@ import ObjectStore
 import qualified Data.Set as Set
 import Data.Algorithm.Diff
 import Patch
+import Data.List
 
 --Diff Stuff
 a0 = ["a"]
@@ -83,3 +84,13 @@ n2 = words "a b 1 3 5 f 7 h"
 n01 = editsToPatch (getEdits n0 n1) "test"
 n02 = editsToPatch (getEdits n0 n2) "test"
 (nnoConfs,nconfs) = n01 >||< n02
+
+p0 = ["a", "", "a", "", "a"]
+p1 = []
+p2 = ["",""]
+p01 = editsToPatch (getEdits p0 p1) "test"
+p02 = editsToPatch (getEdits p0 p2) "test"
+--(onoConfs,oconfs) = p01 >||< p02
+--oconfCHs = map (\(AP _ c) -> c) oconfs
+--Conflict och1s och2s = head oconfCHs
+--((ch1:ch1s), (ch2:ch2s)) =( (sort och1s),(sort och2s))

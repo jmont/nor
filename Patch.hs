@@ -263,22 +263,15 @@ conflictAsCH (c@(Conflict ch1s ch2s)) =
 
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
-getConflictOlds (Conflict (ch1:ch1s) (ch2:ch2s)) =
-      let o1 = offset ch1
-          o2 = offset ch2
-      in if o1 <= o2 then gCO (o1,old ch1) ch1s (ch2:ch2s)
-                     else gCO (o2,old ch2) (ch1:ch1s) ch2s
-   where gCO :: (Int,[String]) -> [ChangeHunk] -> [ChangeHunk] -> [String]
-         gCO (off,currOlds) [(ChangeHunk o1 old1s _)] [] =
-            take (o1 - off) currOlds ++ old1s
-         gCO (off,currOlds) [] [(ChangeHunk o2 old2s _)] =
-            take (o2 - off) currOlds ++ old2s
-         gCO (off,currOlds) (ch1@(ChangeHunk o1 old1s _):ch1s)
-                            (ch2@(ChangeHunk o2 old2s _):ch2s) =
-            if o1 <= o2
-            then gCO (off, take (o1 - off) currOlds ++ old1s) ch1s (ch2:ch2s)
-            else gCO (off, take (o2 - off) currOlds ++ old2s) (ch1:ch1s) ch2s
-         gCO _ _ _ = error "Can't happen in getConflictsOld"
+getConflictOlds (Conflict [] []) = error "Empty conflicts"
+getConflictOlds (Conflict ch1s ch2s) =
+    let (fch:rest) = sort $ ch1s ++ ch2s
+    in gCO' (offset fch) (old fch) rest
+    where gCO' :: Int -> [String] -> [ChangeHunk] -> [String]
+          gCO' off currOlds [] = currOlds
+          gCO' off currOlds (ChangeHunk o olds news:chs)
+            | (length currOlds + off) > (o + length olds) = gCO' off currOlds chs
+            | otherwise = gCO' off (take (o - off) currOlds ++ olds) chs
 
 --conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
 --conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do
