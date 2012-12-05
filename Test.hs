@@ -48,6 +48,10 @@ instance Arbitrary File where
         NonEmpty fpath <- arbitrary
         return $ File fpath (take len conts)
 
+------------------------------------------------------------------------------
+--Utility Functions
+------------------------------------------------------------------------------
+
 -- Generates several patches given a file that don't conflict
 mkGoodPatch :: File -> Gen [Patch]
 mkGoodPatch f = do
@@ -69,6 +73,7 @@ mkGoodCH startoff f = do
             news <- arbitrary
             liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
 
+-- Take a slice (a la python) from a list
 slice :: Int -> Int -> [a] -> [a]
 slice from to xs = take (to - from + 1) (drop from xs)
 
@@ -86,6 +91,20 @@ isConflictSet (Conflict ch1s ch2s) =
    noConflicts ch1s && noConflicts ch2s &&
    foldr (\ch acc -> any (conflicts ch) ch1s && acc) True ch2s &&
    foldr (\ch acc -> any (conflicts ch) ch2s && acc) True ch1s
+
+-- Helper function to generate non-conflicting and conflicting changehunks
+-- from 3 states of a file: lca, va, vb.
+generateAndMergeCHs :: [String] -> [String] -> [String] ->
+    ([ChangeHunk], [Conflict [ChangeHunk]])
+generateAndMergeCHs c0 c1 c2 =
+    let c01 = editsToChangeHunks (getEdits c0 c1)
+        c02 = editsToChangeHunks (getEdits c0 c2)
+        (noConfs, confs) = getChangeHConfs c01 c02
+    in (noConfs, confs)
+
+------------------------------------------------------------------------------
+-- Properties
+------------------------------------------------------------------------------
 
 -- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
 -- not contain any conflicting CHs
@@ -155,6 +174,14 @@ prop_changeHunkEditIso x y =
         in classify ((null x) || (null y)) "Either empty"
             (changeHunksToEdits chs (length x) 0 == es)
 
+-- Olds from getConflictOlds is a subset of the original file
+-- TODO can be made a stricter test by checking offsets
+prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
+prop_getConflictOlds c0 c1 c2 =
+    let (_, confCHs) = generateAndMergeCHs c0 c1 c2
+    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+                     (map getConflictOlds confCHs)
+
 prop_getConflictOlds' :: File -> Gen Bool
 prop_getConflictOlds' f = do
    ch1s <- mkGoodCH 0 f
@@ -162,20 +189,6 @@ prop_getConflictOlds' f = do
    let (_,confLists) = getChangeHConfs ch1s ch2s
    return $ all (\olds -> isInfixOf olds (contents f))
                            (map getConflictOlds confLists)
-
-prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
-prop_getConflictOlds c0 c1 c2 =
-    let (_, confCHs) = generateAndMergeCHs c0 c1 c2
-    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
-                     (map getConflictOlds confCHs)
-
-generateAndMergeCHs :: [String] -> [String] -> [String] ->
-    ([ChangeHunk], [Conflict [ChangeHunk]])
-generateAndMergeCHs c0 c1 c2 =
-    let c01 = editsToChangeHunks (getEdits c0 c1)
-        c02 = editsToChangeHunks (getEdits c0 c2)
-        (noConfs, confs) = getChangeHConfs c01 c02
-    in (noConfs, confs)
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
@@ -194,20 +207,6 @@ prop_viewableConflict' f = do
    let viewableConflicts = map conflictAsCH confLists
    return $ classify (null confLists) "Empty non-conflict list"
       $ noConflicts (viewableConflicts ++ noConfs)
-
---tester :: IO ()
---tester = do
---   files <- sample' (arbitrary `suchThat` (not . null . contents))
---   let f = files !! 3
---   listOfChs <- sample' $ ((\f -> liftM2 (,) (mkGoodCH 0 f) (mkGoodCH 0 f))
---         f) `suchThat` (not . null . snd)
---   let conflictLists = map (snd . getChangeHConfs)
---   let failures = filter (thing (contents f))
---   print f
---   print listOfChs
---   where thing :: [String] -> [Conflict [ChangeHunk]] -> Bool
---         thing confLists conts = all (\olds -> isInfixOf olds conts)
---                                (map getConflictOlds confLists)
 
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
 prop_parallelPatchSequencing :: ParallelPatches -> Bool
