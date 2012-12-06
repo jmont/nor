@@ -92,6 +92,25 @@ isConflictSet (Conflict t1s t2s) =
    foldr (\t acc -> any (conflicts t) t1s && acc) True t2s &&
    foldr (\t acc -> any (conflicts t) t2s && acc) True t1s
 
+isIndependentOfList :: Conflictable t => t -> [t] -> Bool
+isIndependentOfList t ts = not $ any (conflicts t) ts
+
+isIndependentOfConf :: Conflictable t => t -> Conflict [t] -> Bool
+isIndependentOfConf t (Conflict t1s t2s) =
+   isIndependentOfList t t1s && isIndependentOfList t t2s
+
+isMaximalConflicts :: (Eq t,Conflictable t) => [t] -> [Conflict [t]] -> Bool
+isMaximalConflicts noConfs confLists = all (\conf ->
+      let restConf = filter (/= conf) confLists
+          fstInd = all (flip isIndependentOfConfs restConf) (firstConf conf)
+          sndInd = all (flip isIndependentOfConfs restConf) (secondConf conf)
+          noConfsInd = all (flip isIndependentOfList noConfs)
+                           (firstConf conf ++ secondConf conf)
+      in fstInd && sndInd && noConfsInd) confLists
+   where isIndependentOfConfs :: Conflictable t => t -> [Conflict [t]] -> Bool
+         isIndependentOfConfs t confs =
+            all (isIndependentOfConf t) confs
+
 -- Helper function to generate non-conflicting and conflicting changehunks
 -- from 3 states of a file: lca, va, vb.
 generateAndMergeCHs :: [String] -> [String] -> [String] ->
@@ -144,27 +163,9 @@ prop_maximalConflictSet f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (noConfs,confLists) = getChangeHConfs ch1s ch2s
-   let allMaximalConflicts = foldr (\conf acc ->
-        let restConf = filter (/= conf) confLists
-            fstInd = all (chIndependentOfConfs restConf) (firstConf conf)
-            sndInd = all (chIndependentOfConfs restConf) (secondConf conf)
-            noConfsInd = all (chIndependentOf noConfs)
-                           (firstConf conf ++ secondConf conf)
-            isMaximalConflict = fstInd && sndInd && noConfsInd
-        in isMaximalConflict && acc) True confLists
    classify (null confLists || null noConfs)
       "Either empty conflict list or empty non-conflict list"
-      allMaximalConflicts
-   --Independent meaning the ch doesn't conflict with any in the conflict set
-   where chIndependentOf :: [ChangeHunk] -> ChangeHunk -> Bool
-         chIndependentOf ch1s ch =
-            noConflicts (ch:ch1s)
-         chIndependentOfConf :: Conflict [ChangeHunk] -> ChangeHunk -> Bool
-         chIndependentOfConf (Conflict ch1s ch2s) ch =
-            chIndependentOf ch1s ch && chIndependentOf ch2s ch
-         chIndependentOfConfs :: [Conflict [ChangeHunk]] -> ChangeHunk -> Bool
-         chIndependentOfConfs confs ch =
-            all (\conf -> chIndependentOfConf conf ch) confs
+      (isMaximalConflicts noConfs confLists)
 
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
