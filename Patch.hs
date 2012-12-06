@@ -323,18 +323,3 @@ mergeParallelPatches' p1s p2s =
             foldr (\(n,k,_) (k1s,k2s) ->
                      if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
                   ([],[]) (map vertexMap vertexList)
-
---conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
---conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do
---   let olds = getConflictOlds c
---   let off = min (offset (head ch1s)) (offset (head ch2s))
---   let editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
---   putStrLn $ "off:" ++ show off
---   putStrLn $ "ch2:" ++ show (head (tail ch1s))
---   putStrLn $ "FOO:" ++ show editsCh1
---   let editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
---   let appliedCh1 = applyEdits editsCh1 olds
---   let appliedCh2 = applyEdits editsCh2 olds
---   putStrLn $ "olds:" ++  show olds
---   return $ AP cpath $ Change $ ChangeHunk off olds
---         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
