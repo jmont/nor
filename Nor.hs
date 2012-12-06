@@ -7,7 +7,6 @@ import Data.Maybe
 import Data.List
 import Data.Algorithm.Diff
 import Patch
-import qualified Data.Set as Set
 import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
@@ -34,7 +33,7 @@ data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
 instance Ord Commit where
    compare c1 c2 = compare (cid c1) (cid c2)
 instance Eq Commit where
-   (==) c1 c2 = (cid c1) == (cid c2)
+   c1 == c2 = cid c1 == cid c2
 instance Serialize Commit where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
@@ -62,7 +61,7 @@ createCommit s pc = do
    let hashes = getHashes commitOS
    newState <- S.get
    let (_,os) = S.runState s newState
-   let Just pcid = (pc >>= (\x -> return (cid x)))
+   let Just pcid = liftM cid pc
    S.put os
    return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
 
@@ -72,7 +71,7 @@ addCommit s = S.state (\(commitS, os) ->
       in (newCommit, (Set.insert newCommit commitS, newOS)))
 
 mkCommitHash :: [Hash] -> Hash
-mkCommitHash = Hash . hash . Strict.concat . (map getHash)
+mkCommitHash = Hash . hash . Strict.concat . map getHash
 
 -- An empty world
 initCore :: Core
@@ -87,19 +86,19 @@ commitById (commitSet, _) id =
 
 medCheckout :: Core -> Commit -> Maybe [File]
 medCheckout (_,os) (Commit _ hashes _) =
-    sequence (map (getObject os) hashes)
+    mapM (getObject os) hashes
 
 getLca :: Core -> Commit -> Commit -> Commit
 getLca core ca cb =
    let ancSeta = Set.fromList (ancestorList core ca)
-   in foldr (\a z -> if (Set.member a ancSeta) then a else z)
+   in foldr (\a z -> if Set.member a ancSeta then a else z)
       (error "No LCA") (ancestorList core cb)
 
 ancestorList :: Core -> Commit -> [Commit]
 ancestorList _ c1@(Commit Nothing _ _) = [c1]
 ancestorList core c1@(Commit (Just pid) _ _) =
     let Just p = commitById core pid
-    in c1:(ancestorList core p)
+    in c1 : ancestorList core p
 
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =
@@ -112,11 +111,11 @@ patchFromFiles fas fbs =
         patchMap = foldr (\f pm -> Map.alter (alterFun f) (path f) pm)
                    aPatchMap fbs
         ps = Map.foldrWithKey (\path pActions acc ->
-                (map (AP path) pActions) ++ acc) [] patchMap
+                map (AP path) pActions ++ acc) [] patchMap
     in ps
     where alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
           alterFun newFile Nothing =
-             Just $ [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
+             Just [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
           alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
              Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
           alterFun _ _ = error "Can't Happen"
@@ -132,7 +131,7 @@ patchFromCommits os ca cb =
           filesOnlyB = getFilesForSet os onlyB
           in patchFromFiles filesOnlyA filesOnlyB
    where getFilesForSet os hashesSet =
-          (fromJust (sequence (map (getObject os) (Set.toList hashesSet))))
+          fromJust $ mapM (getObject os) (Set.toList hashesSet)
 
 --Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
@@ -172,7 +171,7 @@ mergeCommit os ca cb lca =
 parallelPatchesToCommit :: Commit -> ParallelPatches -> Maybe Hash ->
                            WithObjects File Commit
 parallelPatchesToCommit lca patches mpcid = S.state (\os ->
-      let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
+      let lcaFiles = fromJust $ mapM (getObject os) (hashes lca)
           sPatches = sequenceParallelPatches patches
           newFiles = applyPatches sPatches lcaFiles
           (hs,newOS) = addObjects os newFiles

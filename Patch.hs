@@ -55,6 +55,13 @@ ppath (AP p _) = p
 patchAction :: Patch -> PatchAction
 patchAction (AP _ pa) = pa
 
+eqC :: Eq t => Edit t -> Bool
+eqC = (C ==)
+
+eqD :: Eq t => Edit t -> Bool
+eqD (D _) = True
+eqD _ = False
+
 -- Like fromJust found in Maybe monad
 fromChange :: PatchAction -> ChangeHunk
 fromChange (Change ch) = ch
@@ -65,9 +72,9 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
    where toCanonical [] = []
          toCanonical es =
              let (keeps, rest) = span eqC es
-                 (changes, rest') = span neqC rest
+                 (changes, rest') = break eqC rest
                  dels = filter eqD changes
-                 adds = filter neqD changes
+                 adds = filter (not . eqD) changes
              in keeps ++ dels ++ adds ++ toCanonical rest'
 
          mapFun :: (DI,t) -> Edit t
@@ -75,19 +82,13 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
          mapFun (F,t) = D t
          mapFun (S,t) = I t
 
-         eqC = ((==) C)
-         neqC = not . eqC
-         eqD (D _) = True
-         eqD _ = False
-         neqD = not . eqD
-
 applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
    where aE (C:es) (str2:strs) =
             str2 : aE es strs
-         aE ((D str1):es) (str2:strs) =
-            if (str1 == str2) then aE es strs else error "Deletes don't match"
-         aE ((I str1):es) strs = str1 : aE es strs
+         aE (D str1 : es) (str2:strs) =
+            if str1 == str2 then aE es strs else error "Deletes don't match"
+         aE (I str1 : es) strs = str1 : aE es strs
          aE [] [] = []
          aE es strs = error ("Bad things happened: es:" ++ show es ++
                             " and strs:" ++ show strs)
@@ -97,18 +98,13 @@ editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [ChangeHunk]
 editsToChangeHunks es = eTCH es 0
-   where eqC = ((==) C)
-         neqC = not . eqC
-         eqD (D _) = True
-         eqD _ = False
-         neqD = not . eqD
-         getStr (D str) = str
+   where getStr (D str) = str
          getStr (I str) = str
          getStr C = error "this can't happen"
 
          eTCH es lineNum =
             let (keeps, rest) = span eqC es
-                (changes, rest') = span neqC rest
+                (changes, rest') = break eqC rest
                 (dels, adds)  = span eqD changes
                 ch = ChangeHunk (lineNum + length keeps)
                         (map getStr dels) (map getStr adds)
@@ -119,18 +115,18 @@ editsToChangeHunks es = eTCH es 0
 --Needs Sorted!!
 --minoff is the minimum
 changeHunksToEdits :: [ChangeHunk] -> Int -> Int -> [Edit String]
-changeHunksToEdits [] csToAdd _ = take csToAdd (repeat C)
+changeHunksToEdits [] csToAdd _ = replicate csToAdd C
 changeHunksToEdits chs fileLength minoff =
    let edits = cHE 0 [] chs
        lastCh = last chs
        -- Pad the end with Cs. Use minoff because CHs refer to absolute position
        -- in original file and minoff adjusts for that.
        csToAdd = fileLength - (offset lastCh - minoff) - length (old lastCh)
-   in edits ++ take csToAdd (repeat C)
+   in edits ++ replicate csToAdd C
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
          cHE off es [] = es
          cHE off es (ch:chs) =
-            let cs = take (offset ch - off) (repeat C)
+            let cs = replicate (offset ch - off) C
                 is = map I (new ch)
                 ds = map D (old ch)
             in cHE (offset ch + length (old ch)) (es ++ cs ++ ds ++ is) chs
@@ -199,10 +195,10 @@ findConflictsPA :: [PatchAction] -> [PatchAction] ->
 findConflictsPA pas [] = (pas,[])
 findConflictsPA [] pbs = (pbs,[])
 findConflictsPA pas pbs =
-   let aHasRem = any (== RemoveEmptyFile) pas
-       bHasRem = any (== RemoveEmptyFile) pbs
-       aHasCre = any (== CreateEmptyFile) pas
-       bHasCre = any (== CreateEmptyFile) pbs
+   let aHasRem = elem RemoveEmptyFile pas
+       bHasRem = elem RemoveEmptyFile pbs
+       aHasCre = elem CreateEmptyFile pas
+       bHasCre = elem CreateEmptyFile pbs
        aChangeH = map fromChange (filter isCH pas)
        bChangeH = map fromChange (filter isCH pbs)
        (chNoConf,chConfs) = getChangeHConfs aChangeH bChangeH
@@ -218,14 +214,14 @@ findConflictsPA pas pbs =
    where isCH :: PatchAction -> Bool
          isCH (Change _) = True
          isCH _ = False
-         hasNew (Change ch) = length (new ch) > 0
+         hasNew (Change ch) = not . null $ new ch
          hasNew _ = False
 
 getChangeHConfs :: [ChangeHunk] -> [ChangeHunk] ->
                       ([ChangeHunk],[Conflict [ChangeHunk]])
 getChangeHConfs ch1s ch2s =
-   let confs1 = map (\ch -> (1,ch,(filter (conflicts ch) ch2s))) ch1s
-       confs2 = map (\ch -> (2,ch,(filter (conflicts ch) ch1s))) ch2s
+   let confs1 = map (\ch -> (1, ch, filter (conflicts ch) ch2s)) ch1s
+       confs2 = map (\ch -> (2, ch, filter (conflicts ch) ch1s)) ch2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
    in  foldr (\confTree (noConfs,confs) ->

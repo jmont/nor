@@ -39,7 +39,7 @@ instance Arbitrary t => Arbitrary (AtPath t) where
 instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
     arbitrary = do
         x <- arbitrary
-        Conflict <$> return x <*> arbitrary `suchThat` (conflicts x)
+        Conflict <$> return x <*> arbitrary `suchThat` conflicts x
 
 instance Arbitrary File where
     arbitrary = do
@@ -54,24 +54,24 @@ instance Arbitrary File where
 
 -- Generates several patches given a file that don't conflict
 mkGoodPatch :: File -> Gen [Patch]
-mkGoodPatch f = do
+mkGoodPatch f =
     frequency
         [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
                                  RemoveEmptyFile])),
           (9, do
-            chs <- (mkGoodCH 0 f)
-            return $ map ((AP (path f)) . Change) chs) ]
+            chs <- mkGoodCH 0 f
+            return $ map (AP (path f) . Change) chs) ]
 
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCH :: Int -> File -> Gen [ChangeHunk]
-mkGoodCH startoff f = do
-    if (startoff >= length (contents f) - 1)
+mkGoodCH startoff f =
+    if startoff >= length (contents f) - 1
     then return []
     else do off <- choose (startoff, length . contents $ f)
-            endDellOff <- choose (off, (length (contents f)))
+            endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
+            liftM (ChangeHunk off dels news :) $ mkGoodCH (endDellOff + 1) f
 
 -- Take a slice (a la python) from a list
 slice :: Int -> Int -> [a] -> [a]
@@ -154,11 +154,11 @@ prop_maximalConflictSet f = do
             chIndependentOf ch1s ch && chIndependentOf ch2s ch
          chIndependentOfConfs :: [Conflict [ChangeHunk]] -> ChangeHunk -> Bool
          chIndependentOfConfs confs ch =
-            all (\conf -> chIndependentOfConf conf ch) confs
+            all (`chIndependentOfConf` ch) confs
 
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
-prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
+prop_mkGoodCh f = liftM noConflicts $ mkGoodCH 0 f
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
@@ -171,7 +171,7 @@ prop_changeHunkEditIso :: [String] -> [String] -> Property
 prop_changeHunkEditIso x y =
         let es = getEdits x y
             chs = editsToChangeHunks es
-        in classify ((null x) || (null y)) "Either empty"
+        in classify (null x || null y) "Either empty"
             (changeHunksToEdits chs (length x) 0 == es)
 
 -- Olds from getConflictOlds is a subset of the original file
@@ -179,7 +179,7 @@ prop_changeHunkEditIso x y =
 prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
 prop_getConflictOlds c0 c1 c2 =
     let (_, confCHs) = generateAndMergeCHs c0 c1 c2
-    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+    in all (\olds -> olds `isInfixOf` contents (File "foo" c0))
                      (map getConflictOlds confCHs)
 
 prop_getConflictOlds' :: File -> Gen Bool
@@ -187,7 +187,7 @@ prop_getConflictOlds' f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (_,confLists) = getChangeHConfs ch1s ch2s
-   return $ all (\olds -> isInfixOf olds (contents f))
+   return $ all (\olds -> olds `isInfixOf` contents f)
                            (map getConflictOlds confLists)
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
@@ -213,5 +213,5 @@ prop_parallelPatchSequencing :: ParallelPatches -> Bool
 prop_parallelPatchSequencing ps =
     let onlyCHs = take 5 $ filter (\(AP _ x) -> (x /= RemoveEmptyFile) && (x /= CreateEmptyFile)) ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
-    in foldr (\p acc -> p == (head patchesP) && acc)
+    in foldr (\p acc -> p == head patchesP && acc)
         True (tail patchesP)

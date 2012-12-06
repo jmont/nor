@@ -14,17 +14,17 @@ makeSizeTwo i@(a:[]) = '0':i
 makeSizeTwo i@(a:b:[]) = i
 
 splitInTwos :: [a] -> [[a]]
-splitInTwos (a:b:rest) = [a,b]:(splitInTwos rest)
+splitInTwos (a:b:rest) = [a,b] : splitInTwos rest
 splitInTwos [] = []
 
 hexToHash :: String -> Hash
 hexToHash hx = Hash $ Strict.pack . map fst
-                    . concat . map readHex . splitInTwos $ hx
+                    . concatMap readHex . splitInTwos $ hx
 
 newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
 instance Show Hash where
-    show = concat . map makeSizeTwo
-                  . map (flip showHex "") . Strict.unpack . getHash
+    show = concatMap makeSizeTwo
+                  . map (`showHex` "") . Strict.unpack . getHash
 instance Serialize Hash where
     put (Hash h) = put h
     get = Hash <$> get
@@ -32,7 +32,7 @@ instance Serialize Hash where
 data ObjectStore a = OS { store :: Map.Map Hash a } deriving Show
 
 mkEmptyOS :: ObjectStore a
-mkEmptyOS = OS (Map.empty)
+mkEmptyOS = OS Map.empty
 
 addObject :: Serialize a => ObjectStore a -> a -> (Hash, ObjectStore a)
 addObject os a = let newHash = Hash $ hash (encode a)
@@ -42,15 +42,15 @@ getObject :: ObjectStore a -> Hash -> Maybe a
 getObject os h = Map.lookup h (store os)
 
 getObjects :: ObjectStore a -> [Hash] -> Maybe [a]
-getObjects os hs = sequence $ map (getObject os) hs
+getObjects os = mapM (getObject os)
 
 getHashes :: ObjectStore a -> [Hash]
 getHashes = Map.keys . store
 
 addObjects :: Serialize a => ObjectStore a -> [a] -> ([Hash], ObjectStore a)
-addObjects os as = foldr (\f (hs,os) ->
-                     let (h,os') = addObject os f
-                     in (h:hs,os')) ([],os) as
+addObjects os = foldr
+                    (\f (hs,os) -> let (h,os') = addObject os f in (h:hs,os'))
+                    ([],os)
 
 instance Functor ObjectStore where
    fmap fn fa = OS $ fmap fn (store fa)

@@ -8,7 +8,6 @@ import Numeric
 import qualified Control.Exception as E
 import qualified Data.Set as Set
 import qualified Data.ByteString as S
-import Data.Serialize
 import qualified ObjectStore as O
 import Nor
 import qualified Control.Monad.State as State
@@ -45,28 +44,28 @@ getWorld' = E.catch
         encodedW <- S.hGetContents handle
         hClose handle
         return $ decode encodedW)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >> (return $ Left ""))
+    (\(e) -> hPrint stderr (e :: E.IOException) >> return (Left ""))
 
 createProgDir :: IO ()
 createProgDir = E.catch
     (createDirectory progDirPath)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)))
+    (\(e) -> hPrint stderr (e :: E.IOException))
 
-getWorld :: IO (World)
+getWorld :: IO World
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
-        Left err -> createProgDir >> (return initWorld)
+        Left err -> createProgDir >> return initWorld
         Right w -> return w
 
-getFile :: String -> IO(File)
+getFile :: String -> IO File
 getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
-commit :: World -> [String] -> IO (World)
+commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
-    let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
+    let Just files = mapM (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
     commit w paths
 commit w@(core, eph) names = do
@@ -75,15 +74,15 @@ commit w@(core, eph) names = do
     let newCommitWithFiles = createCommit fhs (Just (headC eph))
     let (newHead,newCore) = State.runState (addCommit newCommitWithFiles) core
     let w' = (newCore, Ephemera newHead (toRebase eph))
-    putStrLn $ show (cid newHead)
+    print $ cid newHead
     return w'
 
 
 
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
-    putStrLn $ "HEAD: " ++ (show (cid (headC eph)))
-    mapM (putStrLn.show) (Set.toList commits)
+    putStrLn $ "HEAD: " ++ show (cid (headC eph))
+    mapM_ print (Set.toList commits)
     return ()
 
 --check if file exists
@@ -93,7 +92,7 @@ deleteFile (File p _) = do
 
 deleteFiles :: [File] -> IO ()
 deleteFiles fs = do
-    mapM deleteFile fs
+    mapM_ deleteFile fs
     return ()
 
 --create file if it doesnt exsit....
@@ -104,31 +103,31 @@ restoreFile (File p cs) = do
 
 restoreFiles :: [File] -> IO ()
 restoreFiles fs = do
-    mapM restoreFile fs
+    mapM_ restoreFile fs
     return ()
 
-checkout :: World -> [String] -> IO (World)
+checkout :: World -> [String] -> IO World
 checkout w@((comSet, os), eph) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
     let files = map (O.getObject os) (hashes com)
-    let Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
-    let Just rFiles =  sequence $ map (O.getObject os) (hashes com)
+    let Just dFiles = mapM (O.getObject os) (hashes (headC eph))
+    let Just rFiles =  mapM (O.getObject os) (hashes com)
     deleteFiles dFiles
     restoreFiles rFiles
     putStrLn $ "Updated repo to " ++ hh
     return ((comSet, os), Ephemera com (toRebase eph))
 
-files :: World -> [String] -> IO (World)
+files :: World -> [String] -> IO World
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
     let Just files = O.getObjects os (hashes com)
     putStrLn $ "Files for " ++ hh
-    mapM (putStrLn.show) files
+    mapM_ print files
     return w
 
-rebase :: World -> [String] -> IO (World)
+rebase :: World -> [String] -> IO World
 rebase (core@(comSet,os), eph) ["--continue"] =
    --implicit commit
    let toPaths = getPaths (headC eph)
@@ -150,9 +149,9 @@ rebase w@(core@(comSet,os), eph) [hh] =
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
 commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
-rebaseContinue :: World -> IO (World)
+rebaseContinue :: World -> IO World
 rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
-   [] -> putStrLn ("Updated repo to " ++ (show (cid  (headC eph)))) >> return w
+   [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
    (c:cs) ->
       let hc = headC eph
           lca = getLca core hc c
@@ -162,12 +161,12 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
                 (head',core') = State.runState (addCommit mergedC) core
                 w' = (core', Ephemera head' cs)
-            in putStrLn ("Merged " ++ (show (cid hc)) ++ " and "
-                                   ++ (show (cid c))) >>
+            in putStrLn ("Merged " ++ show (cid hc) ++ " and "
+                                   ++ show (cid c)) >>
                rebaseContinue w'
          else do
             let conflictPatches = map conflictAsPatch confs
-            let Just files = sequence $ map (O.getObject os) (hashes lca)
+            let Just files = mapM (O.getObject os) (hashes lca)
             let combinedPatches = sequenceParallelPatches
                                     (conflictPatches ++ noConfs)
             let paths = map path files
@@ -176,12 +175,12 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
 
-dispatch :: World -> String -> [String] -> IO (World)
+dispatch :: World -> String -> [String] -> IO World
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
 dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
 dispatch _ _ _ = error "Please continue rebasing before other commands"
 
-dispatch' :: World -> String -> [String] -> IO (World)
+dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
 dispatch' w "commit" ns = commit w ns
 dispatch' w "tree" _ = printCommits w >> return w
@@ -194,7 +193,7 @@ dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 main = do
     w <- getWorld
     args <- getArgs
-    when (args == []) (getProgName >>= (\pn ->
+    when (null args) (getProgName >>= (\pn ->
         error ("Usage: " ++ pn ++ " <command>")))
     w' <- dispatch w (head args) (tail args)
     saveWorld w'
