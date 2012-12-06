@@ -158,7 +158,7 @@ prop_maximalConflictSet f = do
 
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
-prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
+prop_mkGoodCh f = liftM noConflicts $ mkGoodCH 0 f
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
