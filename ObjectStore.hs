@@ -19,11 +19,11 @@ splitInTwos [] = []
 
 hexToHash :: String -> Hash
 hexToHash hx = Hash $ Strict.pack . map fst
-                    . concat . map readHex . splitInTwos $ hx
+                    . concatMap readHex . splitInTwos $ hx
 
 newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
 instance Show Hash where
-    show = concat . map makeSizeTwo
+    show = concatMap makeSizeTwo
                   . map (flip showHex "") . Strict.unpack . getHash
 instance Serialize Hash where
     put (Hash h) = put h
