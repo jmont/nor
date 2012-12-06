@@ -301,7 +301,7 @@ confPPToConfCH (Conflict p1s p2s) =
          onlyChs [] currChs = currChs
 
 mergeParallelPatches' :: ParallelPatches -> ParallelPatches ->
-                      (ParallelPatches,[AtPath (Conflict [ChangeHunk])])
+                      (ParallelPatches,[Conflict ParallelPatches])
 mergeParallelPatches' p1s p2s =
    let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
        confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
@@ -316,7 +316,7 @@ mergeParallelPatches' p1s p2s =
                      in (ch:noConfs,confs)
                   else (noConfs, Conflict fromP1 fromP2 : confs))
              ([],[]) conflictTrees
-   in (Set.toList (Set.fromList noConfs), map confPPToConfCH confs)
+   in (Set.toList (Set.fromList noConfs), confs)
          --Detects conflicts within two lists of changehunks
    where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])

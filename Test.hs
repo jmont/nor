@@ -132,7 +132,7 @@ generateAndMergePatches c0 c1 c2 =
     in (noConfs, confs)
 
 generateAndMergePatches' :: [String] -> [String] -> [String] ->
-    (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
+    (ParallelPatches, [Conflict ParallelPatches])
 generateAndMergePatches' c0 c1 c2 =
     let p01 = editsToPatch (getEdits c0 c1) "test"
         p02 = editsToPatch (getEdits c0 c2) "test"
@@ -239,7 +239,8 @@ prop_parallelPatchSequencing ps =
 prop_sameMergeAlgs :: [String] -> [String] -> [String] -> Bool
 prop_sameMergeAlgs c0 c1 c2 =
   let (noConfs,confs) = generateAndMergePatches c0 c1 c2
-      (noConfs',confs') = generateAndMergePatches' c0 c1 c2
+      (noConfs',confsPP') = generateAndMergePatches' c0 c1 c2
+      confs' = map confPPToConfCH confsPP'
       combPatches = sequenceParallelPatches
             (map conflictAsPatch confs ++ noConfs)
       combPatches' = sequenceParallelPatches
