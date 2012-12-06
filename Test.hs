@@ -39,7 +39,7 @@ instance Arbitrary t => Arbitrary (AtPath t) where
 instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
     arbitrary = do
         x <- arbitrary
-        Conflict <$> return x <*> arbitrary `suchThat` (conflicts x)
+        Conflict <$> return x <*> arbitrary `suchThat` conflicts x
 
 instance Arbitrary File where
     arbitrary = do
@@ -59,19 +59,19 @@ mkGoodPatch f = do
         [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
                                  RemoveEmptyFile])),
           (9, do
-            chs <- (mkGoodCH 0 f)
-            return $ map ((AP (path f)) . Change) chs) ]
+            chs <- mkGoodCH 0 f
+            return $ map (AP (path f) . Change) chs) ]
 
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCH :: Int -> File -> Gen [ChangeHunk]
 mkGoodCH startoff f = do
-    if (startoff >= length (contents f) - 1)
+    if startoff >= length (contents f) - 1
     then return []
     else do off <- choose (startoff, length . contents $ f)
-            endDellOff <- choose (off, (length (contents f)))
+            endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM ((ChangeHunk off dels news) :) $ mkGoodCH (endDellOff + 1) f
+            liftM (ChangeHunk off dels news :) $ mkGoodCH (endDellOff + 1) f
 
 -- Take a slice (a la python) from a list
 slice :: Int -> Int -> [a] -> [a]
@@ -171,7 +171,7 @@ prop_changeHunkEditIso :: [String] -> [String] -> Property
 prop_changeHunkEditIso x y =
         let es = getEdits x y
             chs = editsToChangeHunks es
-        in classify ((null x) || (null y)) "Either empty"
+        in classify (null x || null y) "Either empty"
             (changeHunksToEdits chs (length x) 0 == es)
 
 -- Olds from getConflictOlds is a subset of the original file
@@ -213,5 +213,5 @@ prop_parallelPatchSequencing :: ParallelPatches -> Bool
 prop_parallelPatchSequencing ps =
     let onlyCHs = take 5 $ filter (\(AP _ x) -> (x /= RemoveEmptyFile) && (x /= CreateEmptyFile)) ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
-    in foldr (\p acc -> p == (head patchesP) && acc)
+    in foldr (\p acc -> p == head patchesP && acc)
         True (tail patchesP)
