@@ -86,7 +86,7 @@ commitById (commitSet, _) id =
 
 medCheckout :: Core -> Commit -> Maybe [File]
 medCheckout (_,os) (Commit _ hashes _) =
-    sequence (map (getObject os) hashes)
+    mapM (getObject os) hashes
 
 getLca :: Core -> Commit -> Commit -> Commit
 getLca core ca cb =
@@ -131,7 +131,7 @@ patchFromCommits os ca cb =
           filesOnlyB = getFilesForSet os onlyB
           in patchFromFiles filesOnlyA filesOnlyB
    where getFilesForSet os hashesSet =
-          fromJust $ sequence $ map (getObject os) (Set.toList hashesSet)
+          fromJust $ mapM (getObject os) (Set.toList hashesSet)
 
 --Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
@@ -171,7 +171,7 @@ mergeCommit os ca cb lca =
 parallelPatchesToCommit :: Commit -> ParallelPatches -> Maybe Hash ->
                            WithObjects File Commit
 parallelPatchesToCommit lca patches mpcid = S.state (\os ->
-      let lcaFiles = fromJust (sequence (map (getObject os) (hashes lca)))
+      let lcaFiles = fromJust $ mapM (getObject os) (hashes lca)
           sPatches = sequenceParallelPatches patches
           newFiles = applyPatches sPatches lcaFiles
           (hs,newOS) = addObjects os newFiles
