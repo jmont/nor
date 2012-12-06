@@ -44,7 +44,7 @@ getWorld' = E.catch
         encodedW <- S.hGetContents handle
         hClose handle
         return $ decode encodedW)
-    (\(e) -> hPrint stderr (e :: E.IOException) >> (return $ Left ""))
+    (\(e) -> hPrint stderr (e :: E.IOException) >> return (Left ""))
 
 createProgDir :: IO ()
 createProgDir = E.catch
@@ -55,7 +55,7 @@ getWorld :: IO (World)
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
-        Left err -> createProgDir >> (return initWorld)
+        Left err -> createProgDir >> return initWorld
         Right w -> return w
 
 getFile :: String -> IO(File)
@@ -81,7 +81,7 @@ commit w@(core, eph) names = do
 
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
-    putStrLn $ "HEAD: " ++ (show (cid (headC eph)))
+    putStrLn $ "HEAD: " ++ show (cid (headC eph))
     mapM print (Set.toList commits)
     return ()
 
@@ -151,7 +151,7 @@ commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
 rebaseContinue :: World -> IO (World)
 rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
-   [] -> putStrLn ("Updated repo to " ++ (show (cid  (headC eph)))) >> return w
+   [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
    (c:cs) ->
       let hc = headC eph
           lca = getLca core hc c
@@ -161,8 +161,8 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
                 (head',core') = State.runState (addCommit mergedC) core
                 w' = (core', Ephemera head' cs)
-            in putStrLn ("Merged " ++ (show (cid hc)) ++ " and "
-                                   ++ (show (cid c))) >>
+            in putStrLn ("Merged " ++ show (cid hc) ++ " and "
+                                   ++ show (cid c)) >>
                rebaseContinue w'
          else do
             let conflictPatches = map conflictAsPatch confs
