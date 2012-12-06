@@ -51,19 +51,19 @@ createProgDir = E.catch
     (createDirectory progDirPath)
     (\(e) -> hPrint stderr (e :: E.IOException))
 
-getWorld :: IO (World)
+getWorld :: IO World
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
         Left err -> createProgDir >> return initWorld
         Right w -> return w
 
-getFile :: String -> IO(File)
+getFile :: String -> IO File
 getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
-commit :: World -> [String] -> IO (World)
+commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
     let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
@@ -106,7 +106,7 @@ restoreFiles fs = do
     mapM restoreFile fs
     return ()
 
-checkout :: World -> [String] -> IO (World)
+checkout :: World -> [String] -> IO World
 checkout w@((comSet, os), eph) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
@@ -118,7 +118,7 @@ checkout w@((comSet, os), eph) [hh] = do
     putStrLn $ "Updated repo to " ++ hh
     return ((comSet, os), Ephemera com (toRebase eph))
 
-files :: World -> [String] -> IO (World)
+files :: World -> [String] -> IO World
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
@@ -127,7 +127,7 @@ files w@((comSet, os), headCom) [hh] = do
     mapM print files
     return w
 
-rebase :: World -> [String] -> IO (World)
+rebase :: World -> [String] -> IO World
 rebase (core@(comSet,os), eph) ["--continue"] =
    --implicit commit
    let toPaths = getPaths (headC eph)
@@ -149,7 +149,7 @@ rebase w@(core@(comSet,os), eph) [hh] =
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
 commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
-rebaseContinue :: World -> IO (World)
+rebaseContinue :: World -> IO World
 rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
    [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
    (c:cs) ->
@@ -175,12 +175,12 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
 
-dispatch :: World -> String -> [String] -> IO (World)
+dispatch :: World -> String -> [String] -> IO World
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
 dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
 dispatch _ _ _ = error "Please continue rebasing before other commands"
 
-dispatch' :: World -> String -> [String] -> IO (World)
+dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
 dispatch' w "commit" ns = commit w ns
 dispatch' w "tree" _ = printCommits w >> return w
