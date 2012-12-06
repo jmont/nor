@@ -92,4 +92,4 @@ p01 = editsToChangeHunks (getEdits p0 p1)
 p02 = editsToChangeHunks (getEdits p0 p2)
 (onoConfs,oconfs) = getChangeHConfs p01 p02
 Conflict och1s och2s = head oconfs
-((ch1:ch1s), (ch2:ch2s)) =( (sort och1s),(sort och2s))
+(ch1:ch1s, ch2:ch2s) =(sort och1s, sort och2s)
