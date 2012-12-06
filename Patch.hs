@@ -287,6 +287,30 @@ getConflictOlds (Conflict ch1s ch2s) =
             | (length currOlds + off) > (o + length olds) = gCO' off currOlds chs
             | otherwise = gCO' off (take (o - off) currOlds ++ olds) chs
 
+getConflicts' :: ParallelPatches -> ParallelPatches ->
+                      (ParallelPatches,[Conflict ParallelPatches])
+getConflicts' p1s p2s =
+   let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
+       confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
+       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
+       conflictTrees = G.components confGraph
+   in  foldr (\confTree (noConfs,confs) ->
+               let elems = flatten confTree
+                   (fromP1,fromP2) = partition elems (== 1) adjList
+               in if length elems == 1
+                  then
+                     let (_,ch,_) = adjList (head elems)
+                     in (ch:noConfs,confs)
+                  else (noConfs, Conflict fromP1 fromP2 : confs))
+             ([],[]) conflictTrees
+         --Detects conflicts within two lists of changehunks
+   where partition :: [Vertex] -> (node -> Bool) ->
+                     (Vertex -> (node,key,[key])) -> ([key],[key])
+         partition vertexList partFun vertexMap =
+            foldr (\(n,k,_) (k1s,k2s) ->
+                     if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
+                  ([],[]) (map vertexMap vertexList)
+
 --conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
 --conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do
 --   let olds = getConflictOlds c
