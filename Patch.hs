@@ -287,6 +287,18 @@ getConflictOlds (Conflict ch1s ch2s) =
             | (length currOlds + off) > (o + length olds) = gCO' off currOlds chs
             | otherwise = gCO' off (take (o - off) currOlds ++ olds) chs
 
+-- Helper function to post-process the conflicts
+confPPToConfCH :: Conflict ParallelPatches -> AtPath (Conflict [ChangeHunk])
+confPPToConfCH (Conflict p1s p2s) =
+   let ch1s = onlyChs p1s []
+       ch2s = onlyChs p2s []
+   in AP (ppath (head p1s)) $ Conflict ch1s ch2s
+   where onlyChs :: ParallelPatches -> [ChangeHunk] -> [ChangeHunk]
+         onlyChs (AP _ (Change ch) : ps) currChs =
+            onlyChs ps (ch:currChs)
+         onlyChs (_:ps) currChs = onlyChs ps currChs
+         onlyChs [] currChs = currChs
+
 getConflicts' :: ParallelPatches -> ParallelPatches ->
                       (ParallelPatches,[Conflict ParallelPatches])
 getConflicts' p1s p2s =
