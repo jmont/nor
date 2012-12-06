@@ -24,7 +24,7 @@ hexToHash hx = Hash $ Strict.pack . map fst
 newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
 instance Show Hash where
     show = concatMap makeSizeTwo
-                  . map (flip showHex "") . Strict.unpack . getHash
+                  . map (`showHex` "") . Strict.unpack . getHash
 instance Serialize Hash where
     put (Hash h) = put h
     get = Hash <$> get
