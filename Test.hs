@@ -102,6 +102,16 @@ generateAndMergeCHs c0 c1 c2 =
         (noConfs, confs) = getChangeHConfs c01 c02
     in (noConfs, confs)
 
+-- Helper function to generate non-conflicting and conflicting patches
+-- from 3 states of a file: lca, va, vb.
+generateAndMergePatches :: [String] -> [String] -> [String] ->
+    (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
+generateAndMergePatches c0 c1 c2 =
+    let p01 = editsToPatch (getEdits c0 c1) "test"
+        p02 = editsToPatch (getEdits c0 c2) "test"
+        (noConfs, confs) = p01 >||< p02
+    in (noConfs, confs)
+
 ------------------------------------------------------------------------------
 -- Properties
 ------------------------------------------------------------------------------
