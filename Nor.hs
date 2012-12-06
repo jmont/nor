@@ -33,7 +33,7 @@ data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
 instance Ord Commit where
    compare c1 c2 = compare (cid c1) (cid c2)
 instance Eq Commit where
-   (==) c1 c2 = (cid c1) == (cid c2)
+   c1 == c2 = cid c1 == cid c2
 instance Serialize Commit where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
