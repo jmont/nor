@@ -42,15 +42,15 @@ getObject :: ObjectStore a -> Hash -> Maybe a
 getObject os h = Map.lookup h (store os)
 
 getObjects :: ObjectStore a -> [Hash] -> Maybe [a]
-getObjects os hs = mapM (getObject os) hs
+getObjects os = mapM (getObject os)
 
 getHashes :: ObjectStore a -> [Hash]
 getHashes = Map.keys . store
 
 addObjects :: Serialize a => ObjectStore a -> [a] -> ([Hash], ObjectStore a)
-addObjects os as = foldr (\f (hs,os) ->
-                     let (h,os') = addObject os f
-                     in (h:hs,os')) ([],os) as
+addObjects os = foldr
+                    (\f (hs,os) -> let (h,os') = addObject os f in (h:hs,os'))
+                    ([],os)
 
 instance Functor ObjectStore where
    fmap fn fa = OS $ fmap fn (store fa)
