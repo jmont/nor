@@ -234,7 +234,8 @@ prop_parallelPatchSequencing ps =
     in foldr (\p acc -> p == (head patchesP) && acc)
         True (tail patchesP)
 
---FAILS seems to find a bug in mergeParallelPatches
+--FAILURES seems to find a bug in mergeParallelPatches
+-- Fail cases: [] [] [""] -Different bug in orig, not sure why
 prop_sameMergeAlgs :: [String] -> [String] -> [String] -> Bool
 prop_sameMergeAlgs c0 c1 c2 =
   let (noConfs,confs) = generateAndMergePatches c0 c1 c2

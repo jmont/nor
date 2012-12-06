@@ -4,6 +4,7 @@ import qualified Data.Map as Map
 import Data.List
 import Data.Graph as G
 import Data.Tree as T
+import qualified Data.Set as Set
 
 data Edit t = C -- Copy current input line to output
             | I t -- Insert argument line into output
@@ -199,10 +200,10 @@ mergeParallelPatches p1s p2s =
                                     map (AP path) pas ++ patches) [] only1s
       noConfsP2 = Map.foldrWithKey (\path pas patches ->
                                     map (AP path) pas ++ patches) [] only1s
-      result = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) ->
+      (noConfs,confs) = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) ->
                           (noConfs ++ allNoConfs,confs ++ allConfs))
                          (noConfsP1 ++ noConfsP2,[]) possConfsByPath
-      in result
+      in (Set.toList (Set.fromList noConfs),confs)
   where groupPatch (AP p1 _) (AP p2 _) = p1 == p2
 
 --Works on a Path
@@ -315,7 +316,7 @@ mergeParallelPatches' p1s p2s =
                      in (ch:noConfs,confs)
                   else (noConfs, Conflict fromP1 fromP2 : confs))
              ([],[]) conflictTrees
-   in (noConfs, map confPPToConfCH confs)
+   in (Set.toList (Set.fromList noConfs), map confPPToConfCH confs)
          --Detects conflicts within two lists of changehunks
    where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])
