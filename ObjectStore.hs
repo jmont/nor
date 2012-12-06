@@ -42,7 +42,7 @@ getObject :: ObjectStore a -> Hash -> Maybe a
 getObject os h = Map.lookup h (store os)
 
 getObjects :: ObjectStore a -> [Hash] -> Maybe [a]
-getObjects os hs = sequence $ map (getObject os) hs
+getObjects os hs = mapM (getObject os) hs
 
 getHashes :: ObjectStore a -> [Hash]
 getHashes = Map.keys . store
