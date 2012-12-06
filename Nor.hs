@@ -7,7 +7,6 @@ import Data.Maybe
 import Data.List
 import Data.Algorithm.Diff
 import Patch
-import qualified Data.Set as Set
 import ObjectStore
 import Crypto.Hash.SHA1 (hashlazy, hash)
 import qualified Data.ByteString.Lazy as Lazy
