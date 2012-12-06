@@ -44,12 +44,12 @@ getWorld' = E.catch
         encodedW <- S.hGetContents handle
         hClose handle
         return $ decode encodedW)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >> (return $ Left ""))
+    (\(e) -> hPrint stderr (e :: E.IOException) >> (return $ Left ""))
 
 createProgDir :: IO ()
 createProgDir = E.catch
     (createDirectory progDirPath)
-    (\(e) -> hPutStrLn stderr (show (e :: E.IOException)))
+    (\(e) -> hPrint stderr (e :: E.IOException))
 
 getWorld :: IO (World)
 getWorld = do
@@ -74,7 +74,7 @@ commit w@(core, eph) names = do
     let newCommitWithFiles = createCommit fhs (Just (headC eph))
     let (newHead,newCore) = State.runState (addCommit newCommitWithFiles) core
     let w' = (newCore, Ephemera newHead (toRebase eph))
-    putStrLn $ show (cid newHead)
+    print $ cid newHead
     return w'
 
 
@@ -82,7 +82,7 @@ commit w@(core, eph) names = do
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
     putStrLn $ "HEAD: " ++ (show (cid (headC eph)))
-    mapM (putStrLn.show) (Set.toList commits)
+    mapM print (Set.toList commits)
     return ()
 
 --check if file exists
@@ -124,7 +124,7 @@ files w@((comSet, os), headCom) [hh] = do
     let com = commitByHash comSet h
     let Just files = O.getObjects os (hashes com)
     putStrLn $ "Files for " ++ hh
-    mapM (putStrLn.show) files
+    mapM print files
     return w
 
 rebase :: World -> [String] -> IO (World)
