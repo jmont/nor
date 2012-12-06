@@ -233,3 +233,15 @@ prop_parallelPatchSequencing ps =
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
     in foldr (\p acc -> p == (head patchesP) && acc)
         True (tail patchesP)
+
+--FAILS seems to find a bug in mergeParallelPatches
+prop_sameMergeAlgs :: [String] -> [String] -> [String] -> Bool
+prop_sameMergeAlgs c0 c1 c2 =
+  let (noConfs,confs) = generateAndMergePatches c0 c1 c2
+      (noConfs',confs') = generateAndMergePatches' c0 c1 c2
+      combPatches = sequenceParallelPatches
+            (map conflictAsPatch confs ++ noConfs)
+      combPatches' = sequenceParallelPatches
+            (map conflictAsPatch confs' ++ noConfs')
+      fs = [File "test" c0]
+  in applyPatches combPatches fs == applyPatches combPatches' fs

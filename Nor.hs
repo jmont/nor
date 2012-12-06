@@ -18,7 +18,7 @@ import qualified Control.Monad.State as S
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
-                 } deriving (Show)
+                 } deriving (Show,Eq)
 
 instance Serialize File where
     put (File p c) = put p >> put c
