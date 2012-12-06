@@ -8,7 +8,6 @@ import Numeric
 import qualified Control.Exception as E
 import qualified Data.Set as Set
 import qualified Data.ByteString as S
-import Data.Serialize
 import qualified ObjectStore as O
 import Nor
 import qualified Control.Monad.State as State
