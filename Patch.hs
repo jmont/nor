@@ -85,9 +85,9 @@ applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
    where aE (C:es) (str2:strs) =
             str2 : aE es strs
-         aE ((D str1):es) (str2:strs) =
-            if (str1 == str2) then aE es strs else error "Deletes don't match"
-         aE ((I str1):es) strs = str1 : aE es strs
+         aE (D str1 : es) (str2:strs) =
+            if str1 == str2 then aE es strs else error "Deletes don't match"
+         aE (I str1 : es) strs = str1 : aE es strs
          aE [] [] = []
          aE es strs = error ("Bad things happened: es:" ++ show es ++
                             " and strs:" ++ show strs)
@@ -224,8 +224,8 @@ findConflictsPA pas pbs =
 getChangeHConfs :: [ChangeHunk] -> [ChangeHunk] ->
                       ([ChangeHunk],[Conflict [ChangeHunk]])
 getChangeHConfs ch1s ch2s =
-   let confs1 = map (\ch -> (1,ch,(filter (conflicts ch) ch2s))) ch1s
-       confs2 = map (\ch -> (2,ch,(filter (conflicts ch) ch1s))) ch2s
+   let confs1 = map (\ch -> (1, ch, filter (conflicts ch) ch2s)) ch1s
+       confs2 = map (\ch -> (2, ch, filter (conflicts ch) ch1s)) ch2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
    in  foldr (\confTree (noConfs,confs) ->
