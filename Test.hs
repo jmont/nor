@@ -131,6 +131,13 @@ generateAndMergePatches c0 c1 c2 =
         (noConfs, confs) = p01 >||< p02
     in (noConfs, confs)
 
+generateAndMergePatches' :: [String] -> [String] -> [String] ->
+    (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
+generateAndMergePatches' c0 c1 c2 =
+    let p01 = editsToPatch (getEdits c0 c1) "test"
+        p02 = editsToPatch (getEdits c0 c2) "test"
+        (noConfs, confs) = mergeParallelPatches' p01 p02
+    in (noConfs, confs)
 ------------------------------------------------------------------------------
 -- Properties
 ------------------------------------------------------------------------------
