@@ -299,14 +299,14 @@ confPPToConfCH (Conflict p1s p2s) =
          onlyChs (_:ps) currChs = onlyChs ps currChs
          onlyChs [] currChs = currChs
 
-getConflicts' :: ParallelPatches -> ParallelPatches ->
-                      (ParallelPatches,[Conflict ParallelPatches])
-getConflicts' p1s p2s =
+mergeParallelPatches' :: ParallelPatches -> ParallelPatches ->
+                      (ParallelPatches,[AtPath (Conflict [ChangeHunk])])
+mergeParallelPatches' p1s p2s =
    let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
        confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
-   in  foldr (\confTree (noConfs,confs) ->
+       (noConfs,confs) = foldr (\confTree (noConfs,confs) ->
                let elems = flatten confTree
                    (fromP1,fromP2) = partition elems (== 1) adjList
                in if length elems == 1
@@ -315,6 +315,7 @@ getConflicts' p1s p2s =
                      in (ch:noConfs,confs)
                   else (noConfs, Conflict fromP1 fromP2 : confs))
              ([],[]) conflictTrees
+   in (noConfs, map confPPToConfCH confs)
          --Detects conflicts within two lists of changehunks
    where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])
