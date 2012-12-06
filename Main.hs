@@ -193,7 +193,7 @@ dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 main = do
     w <- getWorld
     args <- getArgs
-    when (args == []) (getProgName >>= (\pn ->
+    when (null args) (getProgName >>= (\pn ->
         error ("Usage: " ++ pn ++ " <command>")))
     w' <- dispatch w (head args) (tail args)
     saveWorld w'
