@@ -76,7 +76,7 @@ m5 = words "m n b c"
 p13 = editsToPatch (getEdits m1 m3) "test"
 p14 = editsToPatch (getEdits m1 m4) "test"
 p15 = editsToPatch (getEdits m1 m5) "test"
-(noConfs,confs) = p13 >||< p14
+(pnoConfs,pconfs) = p13 >||< p14
 
 n0 = words "a b c d e f g h"
 n1 = words "a 0 2 d 4 6 8 h"
