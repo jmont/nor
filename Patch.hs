@@ -72,7 +72,7 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
    where toCanonical [] = []
          toCanonical es =
              let (keeps, rest) = span eqC es
-                 (changes, rest') = span (not . eqC) rest
+                 (changes, rest') = break eqC rest
                  dels = filter eqD changes
                  adds = filter (not . eqD) changes
              in keeps ++ dels ++ adds ++ toCanonical rest'
@@ -104,7 +104,7 @@ editsToChangeHunks es = eTCH es 0
 
          eTCH es lineNum =
             let (keeps, rest) = span eqC es
-                (changes, rest') = span (not . eqC) rest
+                (changes, rest') = break eqC rest
                 (dels, adds)  = span eqD changes
                 ch = ChangeHunk (lineNum + length keeps)
                         (map getStr dels) (map getStr adds)
