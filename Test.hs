@@ -154,7 +154,7 @@ prop_maximalConflictSet f = do
             chIndependentOf ch1s ch && chIndependentOf ch2s ch
          chIndependentOfConfs :: [Conflict [ChangeHunk]] -> ChangeHunk -> Bool
          chIndependentOfConfs confs ch =
-            all (\conf -> chIndependentOfConf conf ch) confs
+            all (`chIndependentOfConf` ch) confs
 
 -- Tests our mkGoodCh to ensure no conflicts on same file
 prop_mkGoodCh :: File -> Gen Bool
