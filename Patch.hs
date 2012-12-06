@@ -115,18 +115,18 @@ editsToChangeHunks es = eTCH es 0
 --Needs Sorted!!
 --minoff is the minimum
 changeHunksToEdits :: [ChangeHunk] -> Int -> Int -> [Edit String]
-changeHunksToEdits [] csToAdd _ = take csToAdd (repeat C)
+changeHunksToEdits [] csToAdd _ = replicate csToAdd C
 changeHunksToEdits chs fileLength minoff =
    let edits = cHE 0 [] chs
        lastCh = last chs
        -- Pad the end with Cs. Use minoff because CHs refer to absolute position
        -- in original file and minoff adjusts for that.
        csToAdd = fileLength - (offset lastCh - minoff) - length (old lastCh)
-   in edits ++ take csToAdd (repeat C)
+   in edits ++ replicate csToAdd C
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
          cHE off es [] = es
          cHE off es (ch:chs) =
-            let cs = take (offset ch - off) (repeat C)
+            let cs = replicate (offset ch - off) C
                 is = map I (new ch)
                 ds = map D (old ch)
             in cHE (offset ch + length (old ch)) (es ++ cs ++ ds ++ is) chs
