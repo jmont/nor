@@ -214,7 +214,7 @@ findConflictsPA pas pbs =
    where isCH :: PatchAction -> Bool
          isCH (Change _) = True
          isCH _ = False
-         hasNew (Change ch) = length (new ch) > 0
+         hasNew (Change ch) = not . null $ new ch
          hasNew _ = False
 
 getChangeHConfs :: [ChangeHunk] -> [ChangeHunk] ->
