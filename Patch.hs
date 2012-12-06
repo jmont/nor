@@ -195,10 +195,10 @@ findConflictsPA :: [PatchAction] -> [PatchAction] ->
 findConflictsPA pas [] = (pas,[])
 findConflictsPA [] pbs = (pbs,[])
 findConflictsPA pas pbs =
-   let aHasRem = any (== RemoveEmptyFile) pas
-       bHasRem = any (== RemoveEmptyFile) pbs
-       aHasCre = any (== CreateEmptyFile) pas
-       bHasCre = any (== CreateEmptyFile) pbs
+   let aHasRem = elem RemoveEmptyFile pas
+       bHasRem = elem RemoveEmptyFile pbs
+       aHasCre = elem CreateEmptyFile pas
+       bHasCre = elem CreateEmptyFile pbs
        aChangeH = map fromChange (filter isCH pas)
        bChangeH = map fromChange (filter isCH pbs)
        (chNoConf,chConfs) = getChangeHConfs aChangeH bChangeH
