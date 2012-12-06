@@ -14,7 +14,7 @@ makeSizeTwo i@(a:[]) = '0':i
 makeSizeTwo i@(a:b:[]) = i
 
 splitInTwos :: [a] -> [[a]]
-splitInTwos (a:b:rest) = [a,b]:(splitInTwos rest)
+splitInTwos (a:b:rest) = [a,b] : splitInTwos rest
 splitInTwos [] = []
 
 hexToHash :: String -> Hash
@@ -32,7 +32,7 @@ instance Serialize Hash where
 data ObjectStore a = OS { store :: Map.Map Hash a } deriving Show
 
 mkEmptyOS :: ObjectStore a
-mkEmptyOS = OS (Map.empty)
+mkEmptyOS = OS Map.empty
 
 addObject :: Serialize a => ObjectStore a -> a -> (Hash, ObjectStore a)
 addObject os a = let newHash = Hash $ hash (encode a)
