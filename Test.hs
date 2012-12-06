@@ -54,7 +54,7 @@ instance Arbitrary File where
 
 -- Generates several patches given a file that don't conflict
 mkGoodPatch :: File -> Gen [Patch]
-mkGoodPatch f = do
+mkGoodPatch f =
     frequency
         [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
                                  RemoveEmptyFile])),
@@ -64,7 +64,7 @@ mkGoodPatch f = do
 
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCH :: Int -> File -> Gen [ChangeHunk]
-mkGoodCH startoff f = do
+mkGoodCH startoff f =
     if startoff >= length (contents f) - 1
     then return []
     else do off <- choose (startoff, length . contents $ f)
