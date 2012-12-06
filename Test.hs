@@ -179,7 +179,7 @@ prop_changeHunkEditIso x y =
 prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
 prop_getConflictOlds c0 c1 c2 =
     let (_, confCHs) = generateAndMergeCHs c0 c1 c2
-    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+    in all (\olds -> olds `isInfixOf` contents (File "foo" c0))
                      (map getConflictOlds confCHs)
 
 prop_getConflictOlds' :: File -> Gen Bool
@@ -187,7 +187,7 @@ prop_getConflictOlds' f = do
    ch1s <- mkGoodCH 0 f
    ch2s <- mkGoodCH 0 f
    let (_,confLists) = getChangeHConfs ch1s ch2s
-   return $ all (\olds -> isInfixOf olds (contents f))
+   return $ all (\olds -> olds `isInfixOf` contents f)
                            (map getConflictOlds confLists)
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
