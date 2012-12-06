@@ -36,6 +36,11 @@ data Conflict t = Conflict { firstConf :: t
                            , secondConf :: t
                            } deriving (Show, Eq)
 
+instance Ord t => Ord (AtPath t) where
+   compare (AP p1 t1) (AP p2 t2) = case compare p1 p2 of
+       EQ -> compare t1 t2
+       otherwise -> otherwise
+
 class Conflictable t where
     conflicts :: t -> t -> Bool
 
