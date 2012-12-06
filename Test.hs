@@ -77,8 +77,8 @@ mkGoodCH startoff f = do
 slice :: Int -> Int -> [a] -> [a]
 slice from to xs = take (to - from + 1) (drop from xs)
 
--- forall x,y in ChangeHunk list, x does not conflict with y
-noConflicts :: [ChangeHunk] -> Bool
+-- forall x,y in a list of conflictable types, x does not conflict with y
+noConflicts :: Conflictable t => [t] -> Bool
 noConflicts chs =
    foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
 
@@ -86,11 +86,11 @@ noConflicts chs =
 -- no conflicts within ch1s or within ch2s
 -- forall x in ch1s there exits y in ch2s where x conflicts with y
 -- forall y in ch2s there exits x in ch1s where y conflicts with x
-isConflictSet :: Conflict [ChangeHunk] -> Bool
-isConflictSet (Conflict ch1s ch2s) =
-   noConflicts ch1s && noConflicts ch2s &&
-   foldr (\ch acc -> any (conflicts ch) ch1s && acc) True ch2s &&
-   foldr (\ch acc -> any (conflicts ch) ch2s && acc) True ch1s
+isConflictSet :: Conflictable t => Conflict [t] -> Bool
+isConflictSet (Conflict t1s t2s) =
+   noConflicts t1s && noConflicts t2s &&
+   foldr (\t acc -> any (conflicts t) t1s && acc) True t2s &&
+   foldr (\t acc -> any (conflicts t) t2s && acc) True t1s
 
 -- Helper function to generate non-conflicting and conflicting changehunks
 -- from 3 states of a file: lca, va, vb.
