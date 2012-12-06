@@ -65,7 +65,7 @@ getFile p = do
 
 commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
-    let Just files = sequence $ map (O.getObject os) (hashes (headC eph))
+    let Just files = mapM (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
     commit w paths
 commit w@(core, eph) names = do
@@ -82,7 +82,7 @@ commit w@(core, eph) names = do
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
     putStrLn $ "HEAD: " ++ show (cid (headC eph))
-    mapM print (Set.toList commits)
+    mapM_ print (Set.toList commits)
     return ()
 
 --check if file exists
@@ -92,7 +92,7 @@ deleteFile (File p _) = do
 
 deleteFiles :: [File] -> IO ()
 deleteFiles fs = do
-    mapM deleteFile fs
+    mapM_ deleteFile fs
     return ()
 
 --create file if it doesnt exsit....
@@ -103,7 +103,7 @@ restoreFile (File p cs) = do
 
 restoreFiles :: [File] -> IO ()
 restoreFiles fs = do
-    mapM restoreFile fs
+    mapM_ restoreFile fs
     return ()
 
 checkout :: World -> [String] -> IO World
@@ -111,8 +111,8 @@ checkout w@((comSet, os), eph) [hh] = do
     let h = O.hexToHash hh
     let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
     let files = map (O.getObject os) (hashes com)
-    let Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
-    let Just rFiles =  sequence $ map (O.getObject os) (hashes com)
+    let Just dFiles = mapM (O.getObject os) (hashes (headC eph))
+    let Just rFiles =  mapM (O.getObject os) (hashes com)
     deleteFiles dFiles
     restoreFiles rFiles
     putStrLn $ "Updated repo to " ++ hh
@@ -124,7 +124,7 @@ files w@((comSet, os), headCom) [hh] = do
     let com = commitByHash comSet h
     let Just files = O.getObjects os (hashes com)
     putStrLn $ "Files for " ++ hh
-    mapM print files
+    mapM_ print files
     return w
 
 rebase :: World -> [String] -> IO World
@@ -166,7 +166,7 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
                rebaseContinue w'
          else do
             let conflictPatches = map conflictAsPatch confs
-            let Just files = sequence $ map (O.getObject os) (hashes lca)
+            let Just files = mapM (O.getObject os) (hashes lca)
             let combinedPatches = sequenceParallelPatches
                                     (conflictPatches ++ noConfs)
             let paths = map path files
