@@ -48,6 +48,15 @@ instance Conflictable ChangeHunk where
        | offset ch1 > offset ch2 =
           offset ch2 + length (old ch2) > offset ch1 -- 2 overlaps with 1
 
+-- When two patchactions applied to the same path conflict
+instance Conflictable PatchAction where
+   conflicts RemoveEmptyFile RemoveEmptyFile = False
+   conflicts CreateEmptyFile CreateEmptyFile = False
+   conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
+   conflicts _ _ = True
+
+instance Conflictable t => Conflictable (AtPath t) where
+   conflicts (AP p1 t1) (AP p2 t2) = p1 == p2 && conflicts t1 t2
 
 ppath :: Patch -> Path
 ppath (AP p _) = p
