@@ -61,7 +61,7 @@ createCommit s pc = do
    let hashes = getHashes commitOS
    newState <- S.get
    let (_,os) = S.runState s newState
-   let Just pcid = pc >>= (\x -> return (cid x))
+   let Just pcid = liftM cid pc
    S.put os
    return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
 
