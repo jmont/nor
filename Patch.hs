@@ -55,6 +55,13 @@ ppath (AP p _) = p
 patchAction :: Patch -> PatchAction
 patchAction (AP _ pa) = pa
 
+eqC :: Eq t => Edit t -> Bool
+eqC = (C ==)
+
+eqD :: Eq t => Edit t -> Bool
+eqD (D _) = True
+eqD _ = False
+
 -- Like fromJust found in Maybe monad
 fromChange :: PatchAction -> ChangeHunk
 fromChange (Change ch) = ch
@@ -65,21 +72,15 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
    where toCanonical [] = []
          toCanonical es =
              let (keeps, rest) = span eqC es
-                 (changes, rest') = span neqC rest
+                 (changes, rest') = span (not . eqC) rest
                  dels = filter eqD changes
-                 adds = filter neqD changes
+                 adds = filter (not . eqD) changes
              in keeps ++ dels ++ adds ++ toCanonical rest'
 
          mapFun :: (DI,t) -> Edit t
          mapFun (B,_) = C
          mapFun (F,t) = D t
          mapFun (S,t) = I t
-
-         eqC = ((==) C)
-         neqC = not . eqC
-         eqD (D _) = True
-         eqD _ = False
-         neqD = not . eqD
 
 applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
@@ -97,18 +98,13 @@ editsToPatch es p = map (AP p . Change) (editsToChangeHunks es)
 
 editsToChangeHunks :: [Edit String] -> [ChangeHunk]
 editsToChangeHunks es = eTCH es 0
-   where eqC = ((==) C)
-         neqC = not . eqC
-         eqD (D _) = True
-         eqD _ = False
-         neqD = not . eqD
-         getStr (D str) = str
+   where getStr (D str) = str
          getStr (I str) = str
          getStr C = error "this can't happen"
 
          eTCH es lineNum =
             let (keeps, rest) = span eqC es
-                (changes, rest') = span neqC rest
+                (changes, rest') = span (not . eqC) rest
                 (dels, adds)  = span eqD changes
                 ch = ChangeHunk (lineNum + length keeps)
                         (map getStr dels) (map getStr adds)
