@@ -10,6 +10,7 @@ import Control.Monad
 import Data.List
 import Nor
 import Cases
+import qualified Data.Set as Set
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
@@ -217,3 +218,10 @@ prop_parallelPatchSequencing ps =
    where isCH :: Patch -> Bool
          isCH (AP _ (Change _)) = True
          isCH _ = False
+
+prop_ungroupByPath :: [AtPath [Int]] -> Property
+prop_ungroupByPath aps = all (not . null . fromPath) aps ==>
+    aps == groupByPath (ungroupByPath aps)
+
+prop_groupByPath :: [AtPath Int] -> Bool
+prop_groupByPath aps = aps == ungroupByPath (groupByPath aps)

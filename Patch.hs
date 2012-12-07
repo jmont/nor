@@ -64,11 +64,23 @@ instance Conflictable PatchAction where
 instance Conflictable t => Conflictable (AtPath t) where
    conflicts (AP p1 t1) (AP p2 t2) = p1 == p2 && conflicts t1 t2
 
-ppath :: Patch -> Path
-ppath (AP p _) = p
+appath :: AtPath t -> Path
+appath (AP p _) = p
 
-patchAction :: Patch -> PatchAction
-patchAction (AP _ pa) = pa
+fromPath :: AtPath t -> t
+fromPath (AP _ t) = t
+
+ungroupByPath :: [AtPath [t]] -> [AtPath t]
+ungroupByPath apts = concatMap moveAPIn apts
+    where moveAPIn :: AtPath [t] -> [AtPath t]
+          moveAPIn (AP p ts) = map (AP p) ts
+
+groupByPath :: [AtPath t] -> [AtPath [t]]
+groupByPath aps =
+    let apls = groupBy (\(AP p1 _) (AP p2 _) -> p1 == p2) aps
+    in map moveAPOut apls
+    where moveAPOut :: [AtPath t] -> AtPath [t]
+          moveAPOut (aps@(a:_)) = AP (appath a) $ map fromPath aps
 
 -- Like fromJust found in Maybe monad
 fromChange :: PatchAction -> ChangeHunk
@@ -206,7 +218,7 @@ confPPToConfCH :: Conflict ParallelPatches -> AtPath (Conflict [ChangeHunk])
 confPPToConfCH (Conflict p1s p2s) =
    let ch1s = onlyChs p1s []
        ch2s = onlyChs p2s []
-   in AP (ppath (head p1s)) $ Conflict ch1s ch2s
+   in AP (appath (head p1s)) $ Conflict ch1s ch2s
    where onlyChs :: ParallelPatches -> [ChangeHunk] -> [ChangeHunk]
          onlyChs (AP _ (Change ch) : ps) currChs =
             onlyChs ps (ch:currChs)
