@@ -173,7 +173,7 @@ sequenceParallelPatches ps =
                otherwise  -> otherwise
 
 p1s >||< p2s =
-    let (noConfs, confs) = mergeParallelPatches' p1s p2s
+    let (noConfs, confs) = mergeParallelPatches p1s p2s
     in (noConfs, map confPPToConfCH confs)
 
 --Doesn't introduce new conflicts with other stuff
@@ -213,9 +213,9 @@ confPPToConfCH (Conflict p1s p2s) =
          onlyChs (_:ps) currChs = onlyChs ps currChs
          onlyChs [] currChs = currChs
 
-mergeParallelPatches' :: ParallelPatches -> ParallelPatches ->
+mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
                       (ParallelPatches,[Conflict ParallelPatches])
-mergeParallelPatches' p1s p2s =
+mergeParallelPatches p1s p2s =
    let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
        confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)

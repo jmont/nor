@@ -140,7 +140,7 @@ generateAndMergePatches' :: [String] -> [String] -> [String] ->
 generateAndMergePatches' c0 c1 c2 =
     let p01 = editsToPatch (getEdits c0 c1) "test"
         p02 = editsToPatch (getEdits c0 c2) "test"
-        (noConfs, confs) = mergeParallelPatches' p01 p02
+        (noConfs, confs) = mergeParallelPatches p01 p02
     in (noConfs, confs)
 ------------------------------------------------------------------------------
 -- Properties
@@ -150,13 +150,13 @@ generateAndMergePatches' c0 c1 c2 =
 -- not contain any conflicting CHs
 prop_noConfs :: PPatchesFromFiles -> Property
 prop_noConfs (PPF p1s p2s) =
-   let (noConfs,_) = mergeParallelPatches' p1s p2s
+   let (noConfs,_) = mergeParallelPatches p1s p2s
    in classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
 
 -- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
 prop_eachHasConflict :: PPatchesFromFiles -> Property
 prop_eachHasConflict (PPF p1s p2s) =
-   let (_,confLists) = mergeParallelPatches' p1s p2s
+   let (_,confLists) = mergeParallelPatches p1s p2s
        b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
    in classify (null confLists) "Nothing conflicts" b
 
@@ -164,7 +164,7 @@ prop_eachHasConflict (PPF p1s p2s) =
 -- conflict with y
 prop_maximalConflictSet :: PPatchesFromFiles -> Property
 prop_maximalConflictSet (PPF p1s p2s) =
-   let (noConfs,confLists) = mergeParallelPatches' p1s p2s
+   let (noConfs,confLists) = mergeParallelPatches p1s p2s
    in classify (null confLists || null noConfs)
       "Either empty conflict list or empty non-conflict list"
       (isMaximalConflicts noConfs confLists)
@@ -209,7 +209,7 @@ prop_viewableConflict c0 c1 c2 =
 
 prop_viewableConflict' :: PPatchesFromFiles -> Property
 prop_viewableConflict' (PPF p1s p2s) =
-   let (noConfs,confLists) = mergeParallelPatches' p1s p2s
+   let (noConfs,confLists) = mergeParallelPatches p1s p2s
        viewableConflicts = map conflictAsPatch $ map confPPToConfCH confLists
    in classify (null confLists) "Empty non-conflict list"
       $ noConflicts (viewableConflicts ++ noConfs)
