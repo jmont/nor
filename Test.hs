@@ -200,15 +200,8 @@ prop_getConflictOlds c0 c1 c2 =
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
-prop_viewableConflict :: [String] -> [String] -> [String] -> Property
-prop_viewableConflict c0 c1 c2 =
-    let (noConfs, confs) = generateAndMergePatches c0 c1 c2
-        viewableConflicts = map conflictAsPatch confs
-    in classify (null confs) "Empty non-conflict list"
-            $ noConflicts (viewableConflicts ++ noConfs)
-
-prop_viewableConflict' :: PPatchesFromFiles -> Property
-prop_viewableConflict' (PPF p1s p2s) =
+prop_viewableConflict :: PPatchesFromFiles -> Property
+prop_viewableConflict (PPF p1s p2s) =
    let (noConfs,confLists) = p1s >||< p2s
        viewableConflicts = map conflictAsPatch confLists
    in classify (null confLists) "Empty non-conflict list"
