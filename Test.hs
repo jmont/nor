@@ -11,6 +11,14 @@ import Data.List
 import Nor
 import Cases
 
+data PPatchesFromFile = PPF ParallelPatches ParallelPatches
+    deriving (Show)
+instance Arbitrary PPatchesFromFile where
+    arbitrary = arbitrary >>= (\a -> liftM2 PPF (mkGoodPPatch a) (mkGoodPPatch a))
+    shrink (PPF [] []) = []
+    shrink (PPF p1s (p2:p2s)) = PPF p1s p2s : shrink (PPF p1s p2s)
+    shrink (PPF (p1:p1s) p2s) = PPF p1s p2s : shrink (PPF p2s p1s)
+
 -- Run all prop_* functions in quickCheck.
 runTests = $quickCheckAll
 
@@ -178,8 +186,8 @@ prop_maximalConflictSet f = do
 prop_mkGoodCH :: File -> Gen Bool
 prop_mkGoodCH f = mkGoodCH 0 f >>= return . noConflicts
 
-prop_mkGoodPPatch :: File -> Gen Bool
-prop_mkGoodPPatch f = liftM noConflicts $ mkGoodPPatch f
+prop_mkGoodPPatch :: PPatchesFromFile -> Bool
+prop_mkGoodPPatch (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
