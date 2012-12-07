@@ -76,7 +76,7 @@ isCH (AP _ (Change _)) = True
 isCH _ = False
 
 ungroupByPath :: [AtPath [t]] -> [AtPath t]
-ungroupByPath apts = concatMap moveAPIn apts
+ungroupByPath = concatMap moveAPIn
     where moveAPIn :: AtPath [t] -> [AtPath t]
           moveAPIn (AP p ts) = map (AP p) ts
 
@@ -228,8 +228,8 @@ getConflictOlds (Conflict ch1s ch2s) =
 mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
                       (ParallelPatches,[Conflict ParallelPatches])
 mergeParallelPatches p1s p2s =
-   let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
-       confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
+   let confs1 = map (\p -> (1, p, filter (conflicts p) p2s)) p1s
+       confs2 = map (\p -> (2, p, filter (conflicts p) p1s)) p2s
        (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
        (noConfs,confs) = foldr (\confTree (noConfs,confs) ->

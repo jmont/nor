@@ -140,7 +140,7 @@ applyPatch (SP (AP ppath (RemoveFile _))) [] =
    error ("Deleting a file that doesn't exist:" ++ ppath)
 applyPatch p@(SP (AP ppath (RemoveFile c))) (f:fs) =
    if ppath == path f
-   then if c == (contents f)
+   then if c == contents f
         then fs
         else error ("Contents of RemoveFile didn't match file" ++ ppath)
    else f:applyPatch p fs

@@ -72,7 +72,7 @@ instance Arbitrary File where
 mkGoodPPatch :: File -> Gen [Patch]
 mkGoodPPatch f =
     frequency
-        [ (1, return ( [AP (path f) (RemoveFile (contents f))])),
+        [ (1, return [AP (path f) (RemoveFile (contents f))]),
           (9, do
             chs <- mkGoodCH 0 f
             return $ map (AP (path f) . Change) chs) ]
@@ -117,14 +117,13 @@ isIndependentOfConf t (Conflict t1s t2s) =
 isMaximalConflicts :: (Eq t,Conflictable t) => [t] -> [Conflict [t]] -> Bool
 isMaximalConflicts noConfs confLists = all (\conf ->
       let restConf = filter (/= conf) confLists
-          fstInd = all (flip isIndependentOfConfs restConf) (firstConf conf)
-          sndInd = all (flip isIndependentOfConfs restConf) (secondConf conf)
-          noConfsInd = all (flip isIndependentOfList noConfs)
+          fstInd = all (`isIndependentOfConfs` restConf) (firstConf conf)
+          sndInd = all (`isIndependentOfConfs` restConf) (secondConf conf)
+          noConfsInd = all (`isIndependentOfList` noConfs)
                            (firstConf conf ++ secondConf conf)
       in fstInd && sndInd && noConfsInd) confLists
    where isIndependentOfConfs :: Conflictable t => t -> [Conflict [t]] -> Bool
-         isIndependentOfConfs t confs =
-            all (isIndependentOfConf t) confs
+         isIndependentOfConfs t = all (isIndependentOfConf t)
 
 -- Helper function to generate non-conflicting and conflicting patches
 -- from 3 states of a file: lca, va, vb.
@@ -206,7 +205,7 @@ prop_getConflictOlds c0 c1 c2 =
                                 chs2 =  map (\(AP _ pa) -> fromChange pa) appas2
                                 in AP p (Conflict chs1 chs2)) confCHs
 
-    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+    in all (\olds -> olds `isInfixOf` contents (File "foo" c0))
                      (map (getConflictOlds . (\(AP _ x) -> x)) confCHs')
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
