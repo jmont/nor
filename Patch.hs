@@ -185,6 +185,7 @@ sequenceParallelPatches ps =
                EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
                otherwise  -> otherwise
 
+(>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
 p1s >||< p2s =
     let (noConfs, confs) = mergeParallelPatches p1s p2s
     in (noConfs, map confPPToConfCH confs)
