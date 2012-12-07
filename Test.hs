@@ -53,8 +53,8 @@ instance Arbitrary File where
 ------------------------------------------------------------------------------
 
 -- Generates several patches given a file that don't conflict
-mkGoodPatch :: File -> Gen [Patch]
-mkGoodPatch f = do
+mkGoodPPatch :: File -> Gen [Patch]
+mkGoodPPatch f = do
     frequency
         [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
                                  RemoveEmptyFile])),
@@ -174,9 +174,12 @@ prop_maximalConflictSet f = do
       "Either empty conflict list or empty non-conflict list"
       (isMaximalConflicts noConfs confLists)
 
--- Tests our mkGoodCh to ensure no conflicts on same file
-prop_mkGoodCh :: File -> Gen Bool
-prop_mkGoodCh f = mkGoodCH 0 f >>= return . noConflicts
+-- Tests our mkGoodCH to ensure no conflicts on same file
+prop_mkGoodCH :: File -> Gen Bool
+prop_mkGoodCH f = mkGoodCH 0 f >>= return . noConflicts
+
+prop_mkGoodPPatch :: File -> Gen Bool
+prop_mkGoodPPatch f = liftM noConflicts $ mkGoodPPatch f
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
