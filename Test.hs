@@ -202,9 +202,9 @@ prop_getConflictOlds c0 c1 c2 =
 -- more conflicts
 prop_viewableConflict :: PPatchesFromFiles -> Property
 prop_viewableConflict (PPF p1s p2s) =
-   let (noConfs,confLists) = p1s >||< p2s
-       viewableConflicts = map conflictAsPatch confLists
-   in classify (null confLists) "Empty non-conflict list"
+   let (noConfs,confs) = p1s >||< p2s
+       viewableConflicts = map conflictAsPatch confs
+   in classify (null confs) "Empty non-conflict list"
       $ noConflicts (viewableConflicts ++ noConfs)
 
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
