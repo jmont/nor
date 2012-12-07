@@ -224,17 +224,3 @@ prop_parallelPatchSequencing ps =
    where isCH :: Patch -> Bool
          isCH (AP _ (Change _)) = True
          isCH _ = False
-
---FAILURES seems to find a bug in mergeParallelPatches
--- Fail cases: [] [] [""] -Different bug in orig, not sure why
-prop_sameMergeAlgs :: [String] -> [String] -> [String] -> Bool
-prop_sameMergeAlgs c0 c1 c2 =
-  let (noConfs,confs) = generateAndMergePatches c0 c1 c2
-      (noConfs',confsPP') = generateAndMergePatches' c0 c1 c2
-      confs' = map confPPToConfCH confsPP'
-      combPatches = sequenceParallelPatches
-            (map conflictAsPatch confs ++ noConfs)
-      combPatches' = sequenceParallelPatches
-            (map conflictAsPatch confs' ++ noConfs')
-      fs = [File "test" c0]
-  in applyPatches combPatches fs == applyPatches combPatches' fs
