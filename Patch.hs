@@ -172,100 +172,13 @@ sequenceParallelPatches ps =
                EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
                otherwise  -> otherwise
 
-(>||<) = mergeParallelPatches
-
-mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
-                        (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
-mergeParallelPatches p1s p2s =
-      --Map Path [PatchAction]
-  let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
-                              (map patchAction ps) m)
-                              Map.empty (groupBy groupPatch p1s)
-      pathAct2ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
-                              (map patchAction ps) m)
-                              Map.empty (groupBy groupPatch p2s)
-      --Map Path (ParallelPatches,[Conflict ParallelPatches])
-      possConfsByPath = Map.intersectionWithKey
-                        (\path pa1s pa2s ->
-                           let (noConfs,confs) = findConflictsPA pa1s pa2s
-                               noConfPatches = map (AP path) noConfs
-                               confPatches =
-                                 map (\(Conflict pas pbs) ->
-                                       AP path (Conflict pas pbs)) confs
-                           in (noConfPatches,confPatches))
-                        pathAct1ByPath pathAct2ByPath
-      only1s = Map.difference pathAct1ByPath pathAct2ByPath
-      only2s = Map.difference pathAct2ByPath pathAct1ByPath
-      noConfsP1 = Map.foldrWithKey (\path pas patches ->
-                                    map (AP path) pas ++ patches) [] only1s
-      noConfsP2 = Map.foldrWithKey (\path pas patches ->
-                                    map (AP path) pas ++ patches) [] only1s
-      (noConfs,confs) = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) ->
-                          (noConfs ++ allNoConfs,confs ++ allConfs))
-                         (noConfsP1 ++ noConfsP2,[]) possConfsByPath
-      in (Set.toList (Set.fromList noConfs),confs)
-  where groupPatch (AP p1 _) (AP p2 _) = p1 == p2
-
---Works on a Path
-findConflictsPA :: [PatchAction] -> [PatchAction] ->
-                   ([PatchAction],[Conflict [ChangeHunk]])
---Remove empty files should be removed completely, just have the conflict
---delete the lines
-findConflictsPA pas [] = (pas,[])
-findConflictsPA [] pbs = (pbs,[])
-findConflictsPA pas pbs =
-   let aHasRem = any (== RemoveEmptyFile) pas
-       bHasRem = any (== RemoveEmptyFile) pbs
-       aHasCre = any (== CreateEmptyFile) pas
-       bHasCre = any (== CreateEmptyFile) pbs
-       aChangeH = map fromChange (filter isCH pas)
-       bChangeH = map fromChange (filter isCH pbs)
-       (chNoConf,chConfs) = getChangeHConfs aChangeH bChangeH
-   in case (aHasRem,bHasRem) of
-      (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
-      (True,False) -> if any hasNew pbs
-                      then ([],[Conflict aChangeH bChangeH])
-                      else (pas ++ pbs,[])
-      (False,True) -> findConflictsPA pbs pas
-      (False,False) -> if aHasCre || bHasCre
-                       then (CreateEmptyFile : map Change chNoConf,chConfs)
-                       else (map Change chNoConf,chConfs)
-   where isCH :: PatchAction -> Bool
-         isCH (Change _) = True
-         isCH _ = False
-         hasNew (Change ch) = length (new ch) > 0
-         hasNew _ = False
-
-getChangeHConfs :: [ChangeHunk] -> [ChangeHunk] ->
-                      ([ChangeHunk],[Conflict [ChangeHunk]])
-getChangeHConfs ch1s ch2s =
-   let confs1 = map (\ch -> (1,ch,(filter (conflicts ch) ch2s))) ch1s
-       confs2 = map (\ch -> (2,ch,(filter (conflicts ch) ch1s))) ch2s
-       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
-       conflictTrees = G.components confGraph
-   in  foldr (\confTree (noConfs,confs) ->
-               let elems = flatten confTree
-                   (fromPa1,fromPa2) = partition elems (== 1) adjList
-               in if length elems == 1
-                  then
-                     let (_,ch,_) = adjList (head elems)
-                     in (ch:noConfs,confs)
-                  else (noConfs, Conflict fromPa1 fromPa2 : confs))
-             ([],[]) conflictTrees
-         --Detects conflicts within two lists of changehunks
-   where partition :: [Vertex] -> (node -> Bool) ->
-                     (Vertex -> (node,key,[key])) -> ([key],[key])
-         partition vertexList partFun vertexMap =
-            foldr (\(n,k,_) (k1s,k2s) ->
-                     if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
-                  ([],[]) (map vertexMap vertexList)
+p1s >||< p2s =
+    let (noConfs, confs) = mergeParallelPatches' p1s p2s
+    in (noConfs, map confPPToConfCH confs)
 
 --Doesn't introduce new conflicts with other stuff
 conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
-conflictAsPatch (AP p conf) = AP p $ Change $ conflictAsCH conf
-
-conflictAsCH :: Conflict [ChangeHunk] -> ChangeHunk
-conflictAsCH (c@(Conflict uch1s uch2s)) =
+conflictAsPatch (AP p (c@(Conflict uch1s uch2s))) =
    let (ch1s, ch2s) = (sort uch1s, sort uch2s)
        olds = getConflictOlds c
        off = min (offset (head ch1s)) (offset (head ch2s))
@@ -273,7 +186,7 @@ conflictAsCH (c@(Conflict uch1s uch2s)) =
        editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
        appliedCh1 = applyEdits editsCh1 olds
        appliedCh2 = applyEdits editsCh2 olds
-   in ChangeHunk off olds
+   in AP p $ Change $ ChangeHunk off olds
          (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
 
 --Returns the olds for the conflict interval

@@ -118,16 +118,6 @@ isMaximalConflicts noConfs confLists = all (\conf ->
          isIndependentOfConfs t confs =
             all (isIndependentOfConf t) confs
 
--- Helper function to generate non-conflicting and conflicting changehunks
--- from 3 states of a file: lca, va, vb.
-generateAndMergeCHs :: [String] -> [String] -> [String] ->
-    ([ChangeHunk], [Conflict [ChangeHunk]])
-generateAndMergeCHs c0 c1 c2 =
-    let c01 = editsToChangeHunks (getEdits c0 c1)
-        c02 = editsToChangeHunks (getEdits c0 c2)
-        (noConfs, confs) = getChangeHConfs c01 c02
-    in (noConfs, confs)
-
 -- Helper function to generate non-conflicting and conflicting patches
 -- from 3 states of a file: lca, va, vb.
 generateAndMergePatches :: [String] -> [String] -> [String] ->
@@ -197,16 +187,16 @@ prop_changeHunkEditIso x y =
 -- TODO can be made a stricter test by checking offsets
 prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
 prop_getConflictOlds c0 c1 c2 =
-    let (_, confCHs) = generateAndMergeCHs c0 c1 c2
+    let (_, confPs) = generateAndMergePatches c0 c1 c2
     in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
-                     (map getConflictOlds confCHs)
+                     (map getConflictOlds (map (\(AP _ x) -> x) confPs))
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
 prop_viewableConflict :: [String] -> [String] -> [String] -> Property
 prop_viewableConflict c0 c1 c2 =
-    let (noConfs, confs) = generateAndMergeCHs c0 c1 c2
-        viewableConflicts = map conflictAsCH confs
+    let (noConfs, confs) = generateAndMergePatches c0 c1 c2
+        viewableConflicts = map conflictAsPatch confs
     in classify (null confs) "Empty non-conflict list"
             $ noConflicts (viewableConflicts ++ noConfs)
 
