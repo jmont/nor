@@ -4,6 +4,7 @@ import qualified Data.Map as Map
 import Data.List
 import Data.Graph as G
 import Data.Tree as T
+import qualified Data.Set as Set
 
 data Edit t = C -- Copy current input line to output
             | I t -- Insert argument line into output
@@ -20,7 +21,7 @@ type ParallelPatches = [Patch]
 
 newtype SequentialPatch = SP Patch deriving Eq
 
-data PatchAction = RemoveEmptyFile
+data PatchAction = RemoveFile [String] -- File contents to delete
                  | CreateEmptyFile
                  | Change ChangeHunk
                  deriving (Show, Eq, Ord)
@@ -36,6 +37,11 @@ data Conflict t = Conflict { firstConf :: t
                            , secondConf :: t
                            } deriving (Show, Eq)
 
+instance Ord t => Ord (AtPath t) where
+   compare (AP p1 t1) (AP p2 t2) = case compare p1 p2 of
+       EQ -> compare t1 t2
+       notEq -> notEq
+
 class Conflictable t where
     conflicts :: t -> t -> Bool
 
@@ -48,12 +54,38 @@ instance Conflictable ChangeHunk where
        | offset ch1 > offset ch2 =
           offset ch2 + length (old ch2) > offset ch1 -- 2 overlaps with 1
 
+-- When two patchactions applied to the same path conflict
+instance Conflictable PatchAction where
+   conflicts (RemoveFile _) (RemoveFile _) = False
+   conflicts CreateEmptyFile _ = False
+   conflicts _ CreateEmptyFile = False
+   conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
+   conflicts _ _ = True
 
-ppath :: Patch -> Path
-ppath (AP p _) = p
+instance Conflictable t => Conflictable (AtPath t) where
+   conflicts (AP p1 t1) (AP p2 t2) = p1 == p2 && conflicts t1 t2
 
-patchAction :: Patch -> PatchAction
-patchAction (AP _ pa) = pa
+appath :: AtPath t -> Path
+appath (AP p _) = p
+
+fromPath :: AtPath t -> t
+fromPath (AP _ t) = t
+
+isCH :: Patch -> Bool
+isCH (AP _ (Change _)) = True
+isCH _ = False
+
+ungroupByPath :: [AtPath [t]] -> [AtPath t]
+ungroupByPath apts = concatMap moveAPIn apts
+    where moveAPIn :: AtPath [t] -> [AtPath t]
+          moveAPIn (AP p ts) = map (AP p) ts
+
+groupByPath :: [AtPath t] -> [AtPath [t]]
+groupByPath aps =
+    let apls = groupBy (\(AP p1 _) (AP p2 _) -> p1 == p2) aps
+    in map moveAPOut apls
+    where moveAPOut :: [AtPath t] -> AtPath [t]
+          moveAPOut (aps@(a:_)) = AP (appath a) $ map fromPath aps
 
 eqC :: Eq t => Edit t -> Bool
 eqC = (C ==)
@@ -142,7 +174,7 @@ sequenceParallelPatches ps =
              chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
          in map SP $ cres ++ sortBy sortCh chs ++ rems
          where
-         eqRemEFile (AP _ RemoveEmptyFile) = True
+         eqRemEFile (AP _ (RemoveFile _)) = True
          eqRemEFile _ = False
          eqCreEFile (AP _ CreateEmptyFile) = True
          eqCreEFile _ = False
@@ -153,109 +185,33 @@ sequenceParallelPatches ps =
                EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
                otherwise  -> otherwise
 
+(>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [Conflict ParallelPatches])
 (>||<) = mergeParallelPatches
 
-mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
-                        (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
-mergeParallelPatches p1s p2s =
-      --Map Path [PatchAction]
-  let pathAct1ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
-                              (map patchAction ps) m)
-                              Map.empty (groupBy groupPatch p1s)
-      pathAct2ByPath = foldr (\ps m -> Map.insert (ppath (head ps))
-                              (map patchAction ps) m)
-                              Map.empty (groupBy groupPatch p2s)
-      --Map Path (ParallelPatches,[Conflict ParallelPatches])
-      possConfsByPath = Map.intersectionWithKey
-                        (\path pa1s pa2s ->
-                           let (noConfs,confs) = findConflictsPA pa1s pa2s
-                               noConfPatches = map (AP path) noConfs
-                               confPatches =
-                                 map (\(Conflict pas pbs) ->
-                                       AP path (Conflict pas pbs)) confs
-                           in (noConfPatches,confPatches))
-                        pathAct1ByPath pathAct2ByPath
-      only1s = Map.difference pathAct1ByPath pathAct2ByPath
-      only2s = Map.difference pathAct2ByPath pathAct1ByPath
-      noConfsP1 = Map.foldrWithKey (\path pas patches ->
-                                    map (AP path) pas ++ patches) [] only1s
-      noConfsP2 = Map.foldrWithKey (\path pas patches ->
-                                    map (AP path) pas ++ patches) [] only1s
-      result = Map.fold (\(noConfs,confs) (allNoConfs,allConfs) ->
-                          (noConfs ++ allNoConfs,confs ++ allConfs))
-                         (noConfsP1 ++ noConfsP2,[]) possConfsByPath
-      in result
-  where groupPatch (AP p1 _) (AP p2 _) = p1 == p2
-
---Works on a Path
-findConflictsPA :: [PatchAction] -> [PatchAction] ->
-                   ([PatchAction],[Conflict [ChangeHunk]])
---Remove empty files should be removed completely, just have the conflict
---delete the lines
-findConflictsPA pas [] = (pas,[])
-findConflictsPA [] pbs = (pbs,[])
-findConflictsPA pas pbs =
-   let aHasRem = elem RemoveEmptyFile pas
-       bHasRem = elem RemoveEmptyFile pbs
-       aHasCre = elem CreateEmptyFile pas
-       bHasCre = elem CreateEmptyFile pbs
-       aChangeH = map fromChange (filter isCH pas)
-       bChangeH = map fromChange (filter isCH pbs)
-       (chNoConf,chConfs) = getChangeHConfs aChangeH bChangeH
-   in case (aHasRem,bHasRem) of
-      (True,True) -> (filter (/= RemoveEmptyFile) (pas ++ pbs), [])
-      (True,False) -> if any hasNew pbs
-                      then ([],[Conflict aChangeH bChangeH])
-                      else (pas ++ pbs,[])
-      (False,True) -> findConflictsPA pbs pas
-      (False,False) -> if aHasCre || bHasCre
-                       then (CreateEmptyFile : map Change chNoConf,chConfs)
-                       else (map Change chNoConf,chConfs)
-   where isCH :: PatchAction -> Bool
-         isCH (Change _) = True
-         isCH _ = False
-         hasNew (Change ch) = not . null $ new ch
-         hasNew _ = False
-
-getChangeHConfs :: [ChangeHunk] -> [ChangeHunk] ->
-                      ([ChangeHunk],[Conflict [ChangeHunk]])
-getChangeHConfs ch1s ch2s =
-   let confs1 = map (\ch -> (1, ch, filter (conflicts ch) ch2s)) ch1s
-       confs2 = map (\ch -> (2, ch, filter (conflicts ch) ch1s)) ch2s
-       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
-       conflictTrees = G.components confGraph
-   in  foldr (\confTree (noConfs,confs) ->
-               let elems = flatten confTree
-                   (fromPa1,fromPa2) = partition elems (== 1) adjList
-               in if length elems == 1
-                  then
-                     let (_,ch,_) = adjList (head elems)
-                     in (ch:noConfs,confs)
-                  else (noConfs, Conflict fromPa1 fromPa2 : confs))
-             ([],[]) conflictTrees
-         --Detects conflicts within two lists of changehunks
-   where partition :: [Vertex] -> (node -> Bool) ->
-                     (Vertex -> (node,key,[key])) -> ([key],[key])
-         partition vertexList partFun vertexMap =
-            foldr (\(n,k,_) (k1s,k2s) ->
-                     if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
-                  ([],[]) (map vertexMap vertexList)
+-- We know that conflicting parallelpatches must all act on same path
+conflictAsPatch :: Conflict ParallelPatches -> Patch
+conflictAsPatch (Conflict p1s p2s) =
+   let p = appath $ head p1s --Conflict list should never be empty
+       pa1s = map fromPath p1s
+       pa2s = map fromPath p2s
+   in conflictAsPatch' (AP p (Conflict pa1s pa2s))
 
 --Doesn't introduce new conflicts with other stuff
-conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
-conflictAsPatch (AP p conf) = AP p $ Change $ conflictAsCH conf
-
-conflictAsCH :: Conflict [ChangeHunk] -> ChangeHunk
-conflictAsCH (c@(Conflict uch1s uch2s)) =
-   let (ch1s, ch2s) = (sort uch1s, sort uch2s)
-       olds = getConflictOlds c
-       off = min (offset (head ch1s)) (offset (head ch2s))
-       editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
-       editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
-       appliedCh1 = applyEdits editsCh1 olds
-       appliedCh2 = applyEdits editsCh2 olds
-   in ChangeHunk off olds
-         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
+conflictAsPatch' :: AtPath (Conflict [PatchAction]) -> Patch
+conflictAsPatch' (AP p (Conflict [RemoveFile c] ps)) =
+    conflictAsPatch' (AP p (Conflict [Change (ChangeHunk 0 c [])] ps))
+conflictAsPatch' (AP p (Conflict ps [RemoveFile c])) =
+    conflictAsPatch' (AP p (Conflict ps [Change (ChangeHunk 0 c [])]))
+conflictAsPatch' (AP p (Conflict uch1s uch2s)) =
+    let (ch1s, ch2s) = (sort (map fromChange uch1s), sort (map fromChange uch2s))
+        olds = getConflictOlds $ Conflict ch1s ch2s
+        off = min (offset (head ch1s)) (offset (head ch2s))
+        editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
+        editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
+        appliedCh1 = applyEdits editsCh1 olds
+        appliedCh2 = applyEdits editsCh2 olds
+    in AP p $ Change $ ChangeHunk off olds
+          (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
 
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
@@ -269,17 +225,27 @@ getConflictOlds (Conflict ch1s ch2s) =
             | (length currOlds + off) > (o + length olds) = gCO' off currOlds chs
             | otherwise = gCO' off (take (o - off) currOlds ++ olds) chs
 
---conflictAsPatchIO :: AtPath (Conflict [ChangeHunk]) -> IO Patch
---conflictAsPatchIO (AP cpath (c@(Conflict ch1s ch2s))) = do
---   let olds = getConflictOlds c
---   let off = min (offset (head ch1s)) (offset (head ch2s))
---   let editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
---   putStrLn $ "off:" ++ show off
---   putStrLn $ "ch2:" ++ show (head (tail ch1s))
---   putStrLn $ "FOO:" ++ show editsCh1
---   let editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
---   let appliedCh1 = applyEdits editsCh1 olds
---   let appliedCh2 = applyEdits editsCh2 olds
---   putStrLn $ "olds:" ++  show olds
---   return $ AP cpath $ Change $ ChangeHunk off olds
---         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
+mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
+                      (ParallelPatches,[Conflict ParallelPatches])
+mergeParallelPatches p1s p2s =
+   let confs1 = map (\p -> (1,p,(filter (conflicts p) p2s))) p1s
+       confs2 = map (\p -> (2,p,(filter (conflicts p) p1s))) p2s
+       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
+       conflictTrees = G.components confGraph
+       (noConfs,confs) = foldr (\confTree (noConfs,confs) ->
+               let elems = flatten confTree
+                   (fromP1,fromP2) = partition elems (== 1) adjList
+               in if length elems == 1
+                  then
+                     let (_,ch,_) = adjList (head elems)
+                     in (ch:noConfs,confs)
+                  else (noConfs, Conflict fromP1 fromP2 : confs))
+             ([],[]) conflictTrees
+   in (Set.toList (Set.fromList noConfs), confs)
+         --Detects conflicts within two lists of changehunks
+   where partition :: [Vertex] -> (node -> Bool) ->
+                     (Vertex -> (node,key,[key])) -> ([key],[key])
+         partition vertexList partFun vertexMap =
+            foldr (\(n,k,_) (k1s,k2s) ->
+                     if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
+                  ([],[]) (map vertexMap vertexList)

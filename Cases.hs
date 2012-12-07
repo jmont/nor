@@ -76,7 +76,7 @@ m5 = words "m n b c"
 p13 = editsToPatch (getEdits m1 m3) "test"
 p14 = editsToPatch (getEdits m1 m4) "test"
 p15 = editsToPatch (getEdits m1 m5) "test"
-(noConfs,confs) = p13 >||< p14
+(pnoConfs,pconfs) = p13 >||< p14
 
 n0 = words "a b c d e f g h"
 n1 = words "a 0 2 d 4 6 8 h"
@@ -88,8 +88,3 @@ n02 = editsToPatch (getEdits n0 n2) "test"
 p0 = ["",""]
 p1 = []
 p2 = ["a",""]
-p01 = editsToChangeHunks (getEdits p0 p1)
-p02 = editsToChangeHunks (getEdits p0 p2)
-(onoConfs,oconfs) = getChangeHConfs p01 p02
-Conflict och1s och2s = head oconfs
-(ch1:ch1s, ch2:ch2s) =(sort och1s, sort och2s)
