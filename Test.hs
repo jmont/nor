@@ -209,8 +209,8 @@ prop_viewableConflict c0 c1 c2 =
 
 prop_viewableConflict' :: PPatchesFromFiles -> Property
 prop_viewableConflict' (PPF p1s p2s) =
-   let (noConfs,confLists) = mergeParallelPatches p1s p2s
-       viewableConflicts = map conflictAsPatch $ map confPPToConfCH confLists
+   let (noConfs,confLists) = p1s >||< p2s
+       viewableConflicts = map conflictAsPatch confLists
    in classify (null confLists) "Empty non-conflict list"
       $ noConflicts (viewableConflicts ++ noConfs)
 
