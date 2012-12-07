@@ -162,7 +162,7 @@ applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
 mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
-               (ParallelPatches,[AtPath (Conflict [ChangeHunk])])
+               (ParallelPatches,[Conflict ParallelPatches])
 mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
           patchA = lca `patchTo` ca

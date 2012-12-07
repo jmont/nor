@@ -185,19 +185,25 @@ sequenceParallelPatches ps =
                EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
                otherwise  -> otherwise
 
-(>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [AtPath (Conflict [ChangeHunk])])
-p1s >||< p2s =
-    let (noConfs, confs) = mergeParallelPatches p1s p2s
-    in (noConfs, map confPPToConfCH confs)
+(>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [Conflict ParallelPatches])
+(>||<) = mergeParallelPatches
+
+-- We know that conflicting parallelpatches must all act on same path
+conflictAsPatch :: Conflict ParallelPatches -> Patch
+conflictAsPatch (Conflict p1s p2s) =
+   let p = appath $ head p1s --Conflict list should never be empty
+       pa1s = map fromPath p1s
+       pa2s = map fromPath p2s
+   in conflictAsPatch' (AP p (Conflict pa1s pa2s))
 
 --Doesn't introduce new conflicts with other stuff
 conflictAsPatch' :: AtPath (Conflict [PatchAction]) -> Patch
 conflictAsPatch' (AP p (Conflict [RemoveFile c] ps)) =
-    conflictAsPatch' (AP p (Conflict ps [RemoveFile c]))
+    conflictAsPatch' (AP p (Conflict [Change (ChangeHunk 0 c [])] ps))
 conflictAsPatch' (AP p (Conflict ps [RemoveFile c])) =
     conflictAsPatch' (AP p (Conflict ps [Change (ChangeHunk 0 c [])]))
 conflictAsPatch' (AP p (Conflict uch1s uch2s)) =
-    let (ch1s, ch2s) = (sort (map toCh uch1s), sort (map toCh uch2s))
+    let (ch1s, ch2s) = (sort (map fromChange uch1s), sort (map fromChange uch2s))
         olds = getConflictOlds $ Conflict ch1s ch2s
         off = min (offset (head ch1s)) (offset (head ch2s))
         editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
@@ -206,22 +212,6 @@ conflictAsPatch' (AP p (Conflict uch1s uch2s)) =
         appliedCh2 = applyEdits editsCh2 olds
     in AP p $ Change $ ChangeHunk off olds
           (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
-    where toCh :: PatchAction -> ChangeHunk
-          toCh (Change x) = x
-          toCh _ = error "Encountered non-Change patchAction"
-
---Doesn't introduce new conflicts with other stuff
-conflictAsPatch :: AtPath (Conflict [ChangeHunk]) -> Patch
-conflictAsPatch (AP p (c@(Conflict uch1s uch2s))) =
-   let (ch1s, ch2s) = (sort uch1s, sort uch2s)
-       olds = getConflictOlds c
-       off = min (offset (head ch1s)) (offset (head ch2s))
-       editsCh1 = drop off $ changeHunksToEdits ch1s (length olds) off
-       editsCh2 = drop off $ changeHunksToEdits ch2s (length olds) off
-       appliedCh1 = applyEdits editsCh1 olds
-       appliedCh2 = applyEdits editsCh2 olds
-   in AP p $ Change $ ChangeHunk off olds
-         (("<<<<<" : appliedCh1) ++ ("=====" : appliedCh2) ++ [">>>>>"])
 
 --Returns the olds for the conflict interval
 getConflictOlds :: Conflict [ChangeHunk] -> [String]
