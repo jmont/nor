@@ -57,7 +57,8 @@ instance Conflictable ChangeHunk where
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
    conflicts (RemoveFile _) (RemoveFile _) = False
-   conflicts CreateEmptyFile CreateEmptyFile = False
+   conflicts CreateEmptyFile _ = False
+   conflicts _ CreateEmptyFile = False
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
 
