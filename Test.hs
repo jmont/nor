@@ -152,39 +152,30 @@ generateAndMergePatches' c0 c1 c2 =
 
 -- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
 -- not contain any conflicting CHs
-prop_noConfs :: File -> Property
-prop_noConfs f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (noConfs,_) = getChangeHConfs ch1s ch2s
-   classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
+prop_noConfs :: PPatchesFromFile -> Property
+prop_noConfs (PPF p1s p2s) =
+   let (noConfs,_) = mergeParallelPatches' p1s p2s
+   in classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
 
 -- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
-prop_eachHasConflict :: File -> Property
-prop_eachHasConflict f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (_,confLists) = getChangeHConfs ch1s ch2s
-   let b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
-   classify (null confLists) "Nothing conflicts" b
-
---Ugly property! Should some of this be in the  type class conflictable?
---Also 50-70% are fairly "easy" cases
+prop_eachHasConflict :: PPatchesFromFile -> Property
+prop_eachHasConflict (PPF p1s p2s) =
+   let (_,confLists) = mergeParallelPatches' p1s p2s
+       b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
+   in classify (null confLists) "Nothing conflicts" b
 
 -- Forall x in a conflict, forall y not in the conflict, x does not
 -- conflict with y
-prop_maximalConflictSet :: File -> Property
-prop_maximalConflictSet f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
-   classify (null confLists || null noConfs)
+prop_maximalConflictSet :: PPatchesFromFile -> Property
+prop_maximalConflictSet (PPF p1s p2s) =
+   let (noConfs,confLists) = mergeParallelPatches' p1s p2s
+   in classify (null confLists || null noConfs)
       "Either empty conflict list or empty non-conflict list"
       (isMaximalConflicts noConfs confLists)
 
 -- Tests our mkGoodCH to ensure no conflicts on same file
 prop_mkGoodCH :: File -> Gen Bool
-prop_mkGoodCH f = mkGoodCH 0 f >>= return . noConflicts
+prop_mkGoodCH f = liftM noConflicts $ mkGoodCH 0 f
 
 prop_mkGoodPPatch :: PPatchesFromFile -> Bool
 prop_mkGoodPPatch (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
@@ -211,14 +202,6 @@ prop_getConflictOlds c0 c1 c2 =
     in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
                      (map getConflictOlds confCHs)
 
-prop_getConflictOlds' :: File -> Gen Bool
-prop_getConflictOlds' f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (_,confLists) = getChangeHConfs ch1s ch2s
-   return $ all (\olds -> isInfixOf olds (contents f))
-                           (map getConflictOlds confLists)
-
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
 prop_viewableConflict :: [String] -> [String] -> [String] -> Property
@@ -228,13 +211,11 @@ prop_viewableConflict c0 c1 c2 =
     in classify (null confs) "Empty non-conflict list"
             $ noConflicts (viewableConflicts ++ noConfs)
 
-prop_viewableConflict' :: File -> Gen Property
-prop_viewableConflict' f = do
-   ch1s <- mkGoodCH 0 f
-   ch2s <- mkGoodCH 0 f
-   let (noConfs,confLists) = getChangeHConfs ch1s ch2s
-   let viewableConflicts = map conflictAsCH confLists
-   return $ classify (null confLists) "Empty non-conflict list"
+prop_viewableConflict' :: PPatchesFromFile -> Property
+prop_viewableConflict' (PPF p1s p2s) =
+   let (noConfs,confLists) = mergeParallelPatches' p1s p2s
+       viewableConflicts = map conflictAsPatch $ map confPPToConfCH confLists
+   in classify (null confLists) "Empty non-conflict list"
       $ noConflicts (viewableConflicts ++ noConfs)
 
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
