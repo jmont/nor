@@ -36,7 +36,7 @@ instance Arbitrary ChangeHunk where
 
 instance Arbitrary PatchAction where
     arbitrary = oneof [return CreateEmptyFile,
-                       return RemoveEmptyFile,
+                       liftM RemoveFile arbitrary,
                        liftM Change arbitrary]
 
 instance Arbitrary t => Arbitrary (AtPath t) where
@@ -64,8 +64,7 @@ instance Arbitrary File where
 mkGoodPPatch :: File -> Gen [Patch]
 mkGoodPPatch f = do
     frequency
-        [ (1, return ( map (AP (path f)) [Change (ChangeHunk 0 (contents f) []),
-                                 RemoveEmptyFile])),
+        [ (1, return ( [AP (path f) (RemoveFile (contents f))])),
           (9, do
             chs <- (mkGoodCH 0 f)
             return $ map ((AP (path f)) . Change) chs) ]
@@ -221,10 +220,13 @@ prop_viewableConflict' (PPF p1s p2s) =
 --sPP [1,2,3] == sPP [any permutation of 1,2,3]
 prop_parallelPatchSequencing :: ParallelPatches -> Bool
 prop_parallelPatchSequencing ps =
-    let onlyCHs = take 5 $ filter (\(AP _ x) -> (x /= RemoveEmptyFile) && (x /= CreateEmptyFile)) ps
+    let onlyCHs = take 5 $ filter isCH ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
     in foldr (\p acc -> p == (head patchesP) && acc)
         True (tail patchesP)
+   where isCH :: Patch -> Bool
+         isCH (AP _ (Change _)) = True
+         isCH _ = False
 
 --FAILURES seems to find a bug in mergeParallelPatches
 -- Fail cases: [] [] [""] -Different bug in orig, not sure why

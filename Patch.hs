@@ -21,7 +21,7 @@ type ParallelPatches = [Patch]
 
 newtype SequentialPatch = SP Patch deriving Eq
 
-data PatchAction = RemoveEmptyFile
+data PatchAction = RemoveFile [String] -- File contents to delete
                  | CreateEmptyFile
                  | Change ChangeHunk
                  deriving (Show, Eq, Ord)
@@ -56,9 +56,7 @@ instance Conflictable ChangeHunk where
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
-   conflicts RemoveEmptyFile RemoveEmptyFile = False
-   conflicts RemoveEmptyFile (Change ch) = not . null $ new ch
-   conflicts (Change ch) RemoveEmptyFile = not . null $ new ch
+   conflicts (RemoveFile _) (RemoveFile _) = False
    conflicts CreateEmptyFile CreateEmptyFile = False
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
@@ -163,7 +161,7 @@ sequenceParallelPatches ps =
              chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
          in map SP $ cres ++ sortBy sortCh chs ++ rems
          where
-         eqRemEFile (AP _ RemoveEmptyFile) = True
+         eqRemEFile (AP _ (RemoveFile _)) = True
          eqRemEFile _ = False
          eqCreEFile (AP _ CreateEmptyFile) = True
          eqCreEFile _ = False

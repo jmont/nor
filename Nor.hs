@@ -105,7 +105,7 @@ patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =
     let --Assume everything in A has been deleted
         aPatchMap = foldr (\f pm -> Map.insert (path f)
-             [Change (ChangeHunk 0 (contents f) []), RemoveEmptyFile] pm)
+             [RemoveFile (contents f)] pm)
              Map.empty fas
         --Update map, anything not found is new
         --If exists, then change to only a changehunk
@@ -137,13 +137,13 @@ patchFromCommits os ca cb =
 --Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
 applyPatch (SP (AP ppath CreateEmptyFile)) fs = File ppath [""]:fs
-applyPatch (SP (AP ppath RemoveEmptyFile)) [] =
+applyPatch (SP (AP ppath (RemoveFile _))) [] =
    error ("Deleting a file that doesn't exist:" ++ ppath)
-applyPatch p@(SP (AP ppath RemoveEmptyFile)) (f:fs) =
+applyPatch p@(SP (AP ppath (RemoveFile c))) (f:fs) =
    if ppath == path f
-   then if null (contents f)
+   then if c == (contents f)
         then fs
-        else error ("Deleting non-empty file" ++ ppath)
+        else error ("Contents of RemoveFile didn't match file" ++ ppath)
    else f:applyPatch p fs
 applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) [] =
    error ("ChangeHunk doesn't correspond to any file: " ++ ppath)
