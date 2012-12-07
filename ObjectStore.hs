@@ -38,6 +38,7 @@ addObject :: Serialize a => ObjectStore a -> a -> (Hash, ObjectStore a)
 addObject os a = let newHash = Hash $ hash (encode a)
                  in (newHash, OS $ Map.insert newHash a (store os))
 
+--Return the object with the corresponding hash, if it exists.
 getObject :: ObjectStore a -> Hash -> Maybe a
 getObject os h = Map.lookup h (store os)
 

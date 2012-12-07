@@ -14,24 +14,31 @@ import qualified Control.Monad.State as State
 import Control.Applicative
 import Patch
 
--- (Head Commit, List of commits to Rebase)
-data Ephemera = Ephemera { headC :: Commit -- current checked-out commit
-                         , toRebase :: [Commit] --commits that need to be rebased
+-- The changing part of the repository, allows the repository to switch states.
+data Ephemera = Ephemera { headC :: Commit -- Current checked-out commit
+                         , toRebase :: [Commit]
+                            -- Mid-rebase, the commits that still need to be
+                            -- handled.
                          } deriving Show
 
 instance Serialize Ephemera where
    put (Ephemera h toR) = put h >> put toR
    get = Ephemera <$> get <*> get
 
+-- All the information in the repository. An append-only Core, and a changing
+-- Ephemera.
 type World = (Core, Ephemera)
 
+-- An "empty" World with a single empty Commit as the head.
 initWorld :: World
 initWorld = let core@(commitSet,os) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
+-- Location in which to save program data.
 progDirPath = "./.nor"
 worldPath = progDirPath ++ "/world"
 
+-- Serialize the world to the filesystem.
 saveWorld :: World -> IO ()
 saveWorld w = do
     handle <- openFile worldPath WriteMode
@@ -46,23 +53,38 @@ getWorld' = E.catch
         return $ decode encodedW)
     (\(e) -> hPrint stderr (e :: E.IOException) >> return (Left ""))
 
-createProgDir :: IO ()
-createProgDir = E.catch
-    (createDirectory progDirPath)
-    (\(e) -> hPrint stderr (e :: E.IOException))
-
+-- Unserialize the World from the filesystem. If no such serialized file
+-- exists, create the directory in which to save it, and use an empty World.
 getWorld :: IO World
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
         Left err -> createProgDir >> return initWorld
         Right w -> return w
+    where getWorld' :: IO (Either String World)
+          getWorld' = E.catch
+              (do handle <- openFile worldPath ReadMode
+                  encodedW <- S.hGetContents handle
+                  hClose handle
+                  return $ decode encodedW)
+              (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >>
+                  (return $ Left "No World found."))
 
+-- Create the directory in which to save program data.
+createProgDir :: IO ()
+createProgDir = createDirectory progDirPath
+
+-- Create a File with contents of the file at the specified path in the
+-- filesystem. Error if the file doesn't exist.
 getFile :: String -> IO File
 getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
+-- Adds a new commit to the world containing the files specified.
+-- If "-a" is the first argument, implicitly commit the current head's files.
+-- The parent of the new commit is the current head.
+-- The new commit becomes the current head.
 commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
     let Just files = mapM (O.getObject os) (hashes (headC eph))
@@ -77,48 +99,54 @@ commit w@(core, eph) names = do
     print $ cid newHead
     return w'
 
-
-
+-- Output the head commit and all other commits.
 printCommits :: World -> IO ()
 printCommits ((commits, _) , eph) = do
     putStrLn $ "HEAD: " ++ show (cid (headC eph))
     mapM_ print (Set.toList commits)
     return ()
 
---check if file exists
+-- Remove the file in the filesystem at the File's path.
+deleteFile :: File -> IO ()
 deleteFile (File p _) = do
     fileExists <- doesFileExist p
     when fileExists $ removeFile p
 
+-- Remove the file in the filesystem at path of each File.
 deleteFiles :: [File] -> IO ()
 deleteFiles fs = do
     mapM_ deleteFile fs
     return ()
 
---create file if it doesnt exsit....
+-- Write the contents of the File to its path in the filesystem.
+restoreFile :: File -> IO ()
 restoreFile (File p cs) = do
     handle <- openFile p WriteMode
     hPutStr handle $ unlines cs
     hClose handle
 
+-- Write the contents of multiple Files to their path in the filesystem.
 restoreFiles :: [File] -> IO ()
 restoreFiles fs = do
     mapM_ restoreFile fs
     return ()
 
+-- Remove files in the current head commit. Restore the files from the commit
+-- corresponding to the specified hash. This commit is made the head commit.
 checkout :: World -> [String] -> IO World
-checkout w@((comSet, os), eph) [hh] = do
+checkout w@((comSet, os), eph) [hh] =
     let h = O.hexToHash hh
-    let com = head $ Set.toList $ Set.filter ((h==).cid) comSet
-    let files = map (O.getObject os) (hashes com)
-    let Just dFiles = mapM (O.getObject os) (hashes (headC eph))
-    let Just rFiles =  mapM (O.getObject os) (hashes com)
-    deleteFiles dFiles
-    restoreFiles rFiles
-    putStrLn $ "Updated repo to " ++ hh
-    return ((comSet, os), Ephemera com (toRebase eph))
+        com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
+        files = map (O.getObject os) (hashes com)
+        Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
+        Just rFiles = sequence $ map (O.getObject os) (hashes com)
+    in do deleteFiles dFiles
+          restoreFiles rFiles
+          putStrLn $ "Updated repo to " ++ hh
+          return ((comSet, os), Ephemera com (toRebase eph))
 
-files :: World -> [String] -> IO World
+-- Print the files from the commit corresponding to the specified hash.
+files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
@@ -127,9 +155,11 @@ files w@((comSet, os), headCom) [hh] = do
     mapM_ print files
     return w
 
+-- On the commit corresponding to the specified hash, replay commits
+-- between the least common ancestor of the head and the commit.
 rebase :: World -> [String] -> IO World
 rebase (core@(comSet,os), eph) ["--continue"] =
-   --implicit commit
+   -- implicit commit
    let toPaths = getPaths (headC eph)
        fromPaths = getPaths . head . toRebase $ eph
        pathSet = Set.fromList (fromPaths ++ toPaths)
@@ -146,9 +176,13 @@ rebase w@(core@(comSet,os), eph) [hh] =
        toR = reverse $ takeWhile (/= lca) (ancestorList core (headC eph))
    in rebaseContinue (core, Ephemera upstreamCom toR)
 
+-- Lookup a commit by its hash
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
 commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
+-- Replay commits sequentially from Ephemeral toRebase list until a conflict
+-- found or rebase finishes.  If conflicts found, write conflicts to files
+-- for the user to edit.
 rebaseContinue :: World -> IO World
 rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
    [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
@@ -175,6 +209,8 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
 
+--Runs the given command with args to alter the world.
+--Ensures that if mid-rebase, no other commands can be used.
 dispatch :: World -> String -> [String] -> IO World
 dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
 dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
@@ -194,6 +230,6 @@ main = do
     w <- getWorld
     args <- getArgs
     when (null args) (getProgName >>= (\pn ->
-        error ("Usage: " ++ pn ++ " <command>")))
+        error ("Usage: " ++ pn ++ " < commit | tree | checkout | files | rebase >")))
     w' <- dispatch w (head args) (tail args)
     saveWorld w'
