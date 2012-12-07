@@ -193,11 +193,21 @@ prop_changeHunkEditIso x y =
 
 -- Olds from getConflictOlds is a subset of the original file
 -- TODO can be made a stricter test by checking offsets
---prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
---prop_getConflictOlds c0 c1 c2 =
---    let (_, confPs) = generateAndMergePatches c0 c1 c2
---    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
---                     (map getConflictOlds (map (\(AP _ x) -> x) confPs))
+prop_getConflictOlds :: [String] -> [String] -> [String] -> Bool
+prop_getConflictOlds c0 c1 c2 =
+    let (_, confPs) = generateAndMergePatches c0 c1 c2
+        confCHs = map (\(Conflict a b) ->
+                            Conflict (filter isCH a) (filter isCH b)) confPs
+        -- Have: [Conflict ParallelPatches]
+        -- Want: [AtPath Conflict [ChangeHunk]]
+        confCHs' = map (\(Conflict appas1 appas2) ->
+                            let p = appath (head appas1)
+                                chs1 =  map (\(AP _ pa) -> fromChange pa) appas1
+                                chs2 =  map (\(AP _ pa) -> fromChange pa) appas2
+                                in AP p (Conflict chs1 chs2)) confCHs
+
+    in all (\olds -> isInfixOf olds (contents (File "foo" c0)))
+                     (map (getConflictOlds . (\(AP _ x) -> x)) confCHs')
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
@@ -242,9 +252,6 @@ prop_parallelPatchSequencing ps =
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
     in foldr (\p acc -> p == (head patchesP) && acc)
         True (tail patchesP)
-   where isCH :: Patch -> Bool
-         isCH (AP _ (Change _)) = True
-         isCH _ = False
 
 prop_ungroupByPath :: [AtPath [Int]] -> Property
 prop_ungroupByPath aps = all (not . null . fromPath) aps ==>

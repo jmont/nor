@@ -71,6 +71,10 @@ appath (AP p _) = p
 fromPath :: AtPath t -> t
 fromPath (AP _ t) = t
 
+isCH :: Patch -> Bool
+isCH (AP _ (Change _)) = True
+isCH _ = False
+
 ungroupByPath :: [AtPath [t]] -> [AtPath t]
 ungroupByPath apts = concatMap moveAPIn apts
     where moveAPIn :: AtPath [t] -> [AtPath t]
