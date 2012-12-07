@@ -11,10 +11,17 @@ import Data.List
 import Nor
 import Cases
 
-data PPatchesFromFile = PPF ParallelPatches ParallelPatches
+data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
-instance Arbitrary PPatchesFromFile where
-    arbitrary = arbitrary >>= (\a -> liftM2 PPF (mkGoodPPatch a) (mkGoodPPatch a))
+instance Arbitrary PPatchesFromFiles where
+    arbitrary = do
+        f1 <- arbitrary
+        f2 <- arbitrary `suchThat` (\f2 -> path f2 /= path f1)
+        ppa1 <- mkGoodPPatch f1
+        ppb1 <- mkGoodPPatch f1
+        ppa2 <- mkGoodPPatch f2
+        ppb2 <- mkGoodPPatch f2
+        return $ PPF (ppa1 ++ ppa2) (ppb1 ++ ppb2)
     shrink (PPF [] []) = []
     shrink (PPF p1s (p2:p2s)) = PPF p1s p2s : shrink (PPF p1s p2s)
     shrink (PPF (p1:p1s) p2s) = PPF p1s p2s : shrink (PPF p2s p1s)
@@ -141,13 +148,13 @@ generateAndMergePatches' c0 c1 c2 =
 
 -- Ensure the list of non-conflicting ChangeHunks from getChangeHConfs does
 -- not contain any conflicting CHs
-prop_noConfs :: PPatchesFromFile -> Property
+prop_noConfs :: PPatchesFromFiles -> Property
 prop_noConfs (PPF p1s p2s) =
    let (noConfs,_) = mergeParallelPatches' p1s p2s
    in classify (null noConfs) "Everything conflicts" (noConflicts noConfs)
 
 -- forall x, exists y s.t. x conflicts y. x,y in a given conflict set
-prop_eachHasConflict :: PPatchesFromFile -> Property
+prop_eachHasConflict :: PPatchesFromFiles -> Property
 prop_eachHasConflict (PPF p1s p2s) =
    let (_,confLists) = mergeParallelPatches' p1s p2s
        b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
@@ -155,7 +162,7 @@ prop_eachHasConflict (PPF p1s p2s) =
 
 -- Forall x in a conflict, forall y not in the conflict, x does not
 -- conflict with y
-prop_maximalConflictSet :: PPatchesFromFile -> Property
+prop_maximalConflictSet :: PPatchesFromFiles -> Property
 prop_maximalConflictSet (PPF p1s p2s) =
    let (noConfs,confLists) = mergeParallelPatches' p1s p2s
    in classify (null confLists || null noConfs)
@@ -166,7 +173,7 @@ prop_maximalConflictSet (PPF p1s p2s) =
 prop_mkGoodCH :: File -> Gen Bool
 prop_mkGoodCH f = liftM noConflicts $ mkGoodCH 0 f
 
-prop_mkGoodPPatch :: PPatchesFromFile -> Bool
+prop_mkGoodPPatch :: PPatchesFromFiles -> Bool
 prop_mkGoodPPatch (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
 
 -- Applying . getEdits is the identity function
@@ -200,7 +207,7 @@ prop_viewableConflict c0 c1 c2 =
     in classify (null confs) "Empty non-conflict list"
             $ noConflicts (viewableConflicts ++ noConfs)
 
-prop_viewableConflict' :: PPatchesFromFile -> Property
+prop_viewableConflict' :: PPatchesFromFiles -> Property
 prop_viewableConflict' (PPF p1s p2s) =
    let (noConfs,confLists) = mergeParallelPatches' p1s p2s
        viewableConflicts = map conflictAsPatch $ map confPPToConfCH confLists
