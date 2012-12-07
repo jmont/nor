@@ -139,6 +139,7 @@ checkout w@((comSet, os), eph) [hh] =
           putStrLn $ "Updated repo to " ++ hh
           return ((comSet, os), Ephemera com (toRebase eph))
 
+-- Print the files from the commit corresponding to the specified hash.
 files :: World -> [String] -> IO (World)
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
@@ -148,6 +149,8 @@ files w@((comSet, os), headCom) [hh] = do
     mapM (putStrLn.show) files
     return w
 
+-- On the commit corresponding to the specified hash, replay commits
+-- between the least common ancestor of the head and the commit.
 rebase :: World -> [String] -> IO (World)
 rebase (core@(comSet,os), eph) ["--continue"] =
    -- implicit commit
@@ -167,9 +170,13 @@ rebase w@(core@(comSet,os), eph) [hh] =
        toR = reverse $ takeWhile (/= lca) (ancestorList core (headC eph))
    in rebaseContinue (core, Ephemera upstreamCom toR)
 
+-- Lookup a commit by its hash
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
 commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
+-- Replay commits sequentially from Ephemeral toRebase list until a conflict
+-- found or rebase finishes.  If conflicts found, write conflicts to files
+-- for the user to edit.
 rebaseContinue :: World -> IO (World)
 rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
    [] -> putStrLn ("Updated repo to " ++ (show (cid  (headC eph)))) >> return w
