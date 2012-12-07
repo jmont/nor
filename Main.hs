@@ -45,14 +45,6 @@ saveWorld w = do
     S.hPutStr handle $ encode w
     hClose handle
 
-getWorld' :: IO (Either String World)
-getWorld' = E.catch
-    (do handle <- openFile worldPath ReadMode
-        encodedW <- S.hGetContents handle
-        hClose handle
-        return $ decode encodedW)
-    (\(e) -> hPrint stderr (e :: E.IOException) >> return (Left ""))
-
 -- Unserialize the World from the filesystem. If no such serialized file
 -- exists, create the directory in which to save it, and use an empty World.
 getWorld :: IO World
@@ -67,8 +59,8 @@ getWorld = do
                   encodedW <- S.hGetContents handle
                   hClose handle
                   return $ decode encodedW)
-              (\(e) -> hPutStrLn stderr (show (e :: E.IOException)) >>
-                  (return $ Left "No World found."))
+              (\(e) -> hPrint stderr (e :: E.IOException) >>
+                  return (Left "No World found."))
 
 -- Create the directory in which to save program data.
 createProgDir :: IO ()
@@ -138,15 +130,15 @@ checkout w@((comSet, os), eph) [hh] =
     let h = O.hexToHash hh
         com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
         files = map (O.getObject os) (hashes com)
-        Just dFiles = sequence $ map (O.getObject os) (hashes (headC eph))
-        Just rFiles = sequence $ map (O.getObject os) (hashes com)
+        Just dFiles = mapM (O.getObject os) (hashes (headC eph))
+        Just rFiles = mapM (O.getObject os) (hashes com)
     in do deleteFiles dFiles
           restoreFiles rFiles
           putStrLn $ "Updated repo to " ++ hh
           return ((comSet, os), Ephemera com (toRebase eph))
 
 -- Print the files from the commit corresponding to the specified hash.
-files :: World -> [String] -> IO (World)
+files :: World -> [String] -> IO World
 files w@((comSet, os), headCom) [hh] = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
