@@ -2,4 +2,3 @@
 ghc -o nor *.hs
 rm *.o
 rm *.hi
-
