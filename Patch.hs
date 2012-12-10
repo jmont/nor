@@ -22,7 +22,7 @@ type ParallelPatches = [Patch]
 newtype SequentialPatch = SP Patch deriving Eq
 
 data PatchAction = RemoveFile [String] -- File contents to delete
-                 | CreateEmptyFile
+                 | CreateFile [String] -- File contents to add
                  | Change ChangeHunk
                  deriving (Show, Eq, Ord)
 
@@ -56,9 +56,8 @@ instance Conflictable ChangeHunk where
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
-   conflicts (RemoveFile _) (RemoveFile _) = False
-   conflicts CreateEmptyFile _ = False
-   conflicts _ CreateEmptyFile = False
+   conflicts (RemoveFile c1) (RemoveFile c2) = c1 /= c2
+   conflicts (CreateFile c1) (CreateFile c2) = c1 /= c2
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
 
@@ -176,7 +175,7 @@ sequenceParallelPatches ps =
          where
          eqRemEFile (AP _ (RemoveFile _)) = True
          eqRemEFile _ = False
-         eqCreEFile (AP _ CreateEmptyFile) = True
+         eqCreEFile (AP _ (CreateFile _)) = True
          eqCreEFile _ = False
 
          sortCh :: Patch -> Patch -> Ordering
@@ -198,6 +197,8 @@ conflictAsPatch (Conflict p1s p2s) =
 
 --Doesn't introduce new conflicts with other stuff
 conflictAsPatch' :: AtPath (Conflict [PatchAction]) -> Patch
+conflictAsPatch' (AP p (Conflict [CreateFile c1] [CreateFile c2])) =
+   AP p $ CreateFile $ "<<<<<" : c1 ++ "=====" : c2 ++ [">>>>>"]
 conflictAsPatch' (AP p (Conflict [RemoveFile c] ps)) =
     conflictAsPatch' (AP p (Conflict [Change (ChangeHunk 0 c [])] ps))
 conflictAsPatch' (AP p (Conflict ps [RemoveFile c])) =

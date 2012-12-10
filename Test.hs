@@ -43,7 +43,7 @@ instance Arbitrary ChangeHunk where
         return $ ChangeHunk n olds news
 
 instance Arbitrary PatchAction where
-    arbitrary = oneof [return CreateEmptyFile,
+    arbitrary = oneof [liftM CreateFile arbitrary,
                        liftM RemoveFile arbitrary,
                        liftM Change arbitrary]
 
