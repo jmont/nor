@@ -22,7 +22,12 @@ instance Arbitrary PPatchesFromFiles where
         ppb1 <- mkGoodPPatch f1
         ppa2 <- mkGoodPPatch f2
         ppb2 <- mkGoodPPatch f2
-        return $ PPF (ppa1 ++ ppa2) (ppb1 ++ ppb2)
+        f3 <- arbitrary `suchThat` (\f3 -> (path f1 /= path f3) &&
+                                           (path f2 /= path f3))
+        f4 <- arbitrary `suchThat` (\f4 -> (path f1 /= path f4) &&
+                                           (path f2 /= path f4))
+        return $ PPF (AP (path f3) (CreateFile (contents f3)) : ppa1 ++ ppa2)
+                     (AP (path f4) (CreateFile (contents f4)) : ppb1 ++ ppb2)
     shrink (PPF [] []) = []
     shrink (PPF p1s (p2:p2s)) = PPF p1s p2s : shrink (PPF p1s p2s)
     shrink (PPF (p1:p1s) p2s) = PPF p1s p2s : shrink (PPF p2s p1s)
