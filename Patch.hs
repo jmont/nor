@@ -19,7 +19,7 @@ type Patch = AtPath PatchAction
 
 type ParallelPatches = [Patch]
 
-newtype SequentialPatch = SP Patch deriving Eq
+newtype SequentialPatch = SP Patch deriving (Eq, Show)
 
 data PatchAction = RemoveFile [String] -- File contents to delete
                  | CreateFile [String] -- File contents to add
@@ -162,27 +162,9 @@ changeHunksToEdits chs fileLength minoff =
                 ds = map D (old ch)
             in cHE (offset ch + length (old ch)) (es ++ cs ++ ds ++ is) chs
 
---This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
 sequenceParallelPatches :: ParallelPatches -> [SequentialPatch]
-sequenceParallelPatches [] = []
-sequenceParallelPatches [p] = [SP p]
-sequenceParallelPatches ps =
-         let rems = filter eqRemEFile ps
-             cres = filter eqCreEFile ps
-             chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
-         in map SP $ cres ++ sortBy sortCh chs ++ rems
-         where
-         eqRemEFile (AP _ (RemoveFile _)) = True
-         eqRemEFile _ = False
-         eqCreEFile (AP _ (CreateFile _)) = True
-         eqCreEFile _ = False
-
-         sortCh :: Patch -> Patch -> Ordering
-         sortCh (AP p1 ch1) (AP p2 ch2) =
-            case compare p1 p2 of
-               EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
-               otherwise  -> otherwise
+sequenceParallelPatches = (map SP) . reverse . sort
 
 (>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [Conflict ParallelPatches])
 (>||<) = mergeParallelPatches
