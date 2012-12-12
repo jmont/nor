@@ -115,7 +115,7 @@ patchFromFiles fas fbs =
     in ps
     where alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
           alterFun newFile Nothing =
-             Just [CreateEmptyFile, Change (ChangeHunk 0 [] (contents newFile))]
+             Just [CreateFile (contents newFile)]
           alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
              Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
           alterFun _ _ = error "Can't Happen"
@@ -135,7 +135,7 @@ patchFromCommits os ca cb =
 
 --Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
-applyPatch (SP (AP ppath CreateEmptyFile)) fs = File ppath [""]:fs
+applyPatch (SP (AP ppath (CreateFile c))) fs = File ppath c : fs
 applyPatch (SP (AP ppath (RemoveFile _))) [] =
    error ("Deleting a file that doesn't exist:" ++ ppath)
 applyPatch p@(SP (AP ppath (RemoveFile c))) (f:fs) =

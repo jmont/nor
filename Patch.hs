@@ -19,10 +19,10 @@ type Patch = AtPath PatchAction
 
 type ParallelPatches = [Patch]
 
-newtype SequentialPatch = SP Patch deriving Eq
+newtype SequentialPatch = SP Patch deriving (Eq, Show)
 
 data PatchAction = RemoveFile [String] -- File contents to delete
-                 | CreateEmptyFile
+                 | CreateFile [String] -- File contents to add
                  | Change ChangeHunk
                  deriving (Show, Eq, Ord)
 
@@ -56,9 +56,8 @@ instance Conflictable ChangeHunk where
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
-   conflicts (RemoveFile _) (RemoveFile _) = False
-   conflicts CreateEmptyFile _ = False
-   conflicts _ CreateEmptyFile = False
+   conflicts (RemoveFile c1) (RemoveFile c2) = c1 /= c2
+   conflicts (CreateFile c1) (CreateFile c2) = c1 /= c2
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
 
@@ -163,27 +162,9 @@ changeHunksToEdits chs fileLength minoff =
                 ds = map D (old ch)
             in cHE (offset ch + length (old ch)) (es ++ cs ++ ds ++ is) chs
 
---This is ugly and needs work
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
 sequenceParallelPatches :: ParallelPatches -> [SequentialPatch]
-sequenceParallelPatches [] = []
-sequenceParallelPatches [p] = [SP p]
-sequenceParallelPatches ps =
-         let rems = filter eqRemEFile ps
-             cres = filter eqCreEFile ps
-             chs  = filter (\p -> not (eqRemEFile p || eqCreEFile p)) ps
-         in map SP $ cres ++ sortBy sortCh chs ++ rems
-         where
-         eqRemEFile (AP _ (RemoveFile _)) = True
-         eqRemEFile _ = False
-         eqCreEFile (AP _ CreateEmptyFile) = True
-         eqCreEFile _ = False
-
-         sortCh :: Patch -> Patch -> Ordering
-         sortCh (AP p1 ch1) (AP p2 ch2) =
-            case compare p1 p2 of
-               EQ -> compare (fromChange ch2) (fromChange ch1)  --Sort acesending
-               otherwise  -> otherwise
+sequenceParallelPatches = (map SP) . reverse . sort
 
 (>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [Conflict ParallelPatches])
 (>||<) = mergeParallelPatches
@@ -198,6 +179,8 @@ conflictAsPatch (Conflict p1s p2s) =
 
 --Doesn't introduce new conflicts with other stuff
 conflictAsPatch' :: AtPath (Conflict [PatchAction]) -> Patch
+conflictAsPatch' (AP p (Conflict [CreateFile c1] [CreateFile c2])) =
+   AP p $ CreateFile $ "<<<<<" : c1 ++ "=====" : c2 ++ [">>>>>"]
 conflictAsPatch' (AP p (Conflict [RemoveFile c] ps)) =
     conflictAsPatch' (AP p (Conflict [Change (ChangeHunk 0 c [])] ps))
 conflictAsPatch' (AP p (Conflict ps [RemoveFile c])) =

@@ -18,11 +18,16 @@ instance Arbitrary PPatchesFromFiles where
     arbitrary = do
         f1 <- arbitrary
         f2 <- arbitrary `suchThat` (\f2 -> path f2 /= path f1)
-        ppa1 <- mkGoodPPatch f1
-        ppb1 <- mkGoodPPatch f1
-        ppa2 <- mkGoodPPatch f2
-        ppb2 <- mkGoodPPatch f2
-        return $ PPF (ppa1 ++ ppa2) (ppb1 ++ ppb2)
+        ppa1 <- mkGoodPPatches f1
+        ppb1 <- mkGoodPPatches f1
+        ppa2 <- mkGoodPPatches f2
+        ppb2 <- mkGoodPPatches f2
+        f3 <- arbitrary `suchThat` (\f3 -> (path f1 /= path f3) &&
+                                           (path f2 /= path f3))
+        f4 <- arbitrary `suchThat` (\f4 -> (path f1 /= path f4) &&
+                                           (path f2 /= path f4))
+        return $ PPF (AP (path f3) (CreateFile (contents f3)) : ppa1 ++ ppa2)
+                     (AP (path f4) (CreateFile (contents f4)) : ppb1 ++ ppb2)
     shrink (PPF [] []) = []
     shrink (PPF p1s (p2:p2s)) = PPF p1s p2s : shrink (PPF p1s p2s)
     shrink (PPF (p1:p1s) p2s) = PPF p1s p2s : shrink (PPF p2s p1s)
@@ -43,7 +48,7 @@ instance Arbitrary ChangeHunk where
         return $ ChangeHunk n olds news
 
 instance Arbitrary PatchAction where
-    arbitrary = oneof [return CreateEmptyFile,
+    arbitrary = oneof [liftM CreateFile arbitrary,
                        liftM RemoveFile arbitrary,
                        liftM Change arbitrary]
 
@@ -69,28 +74,27 @@ instance Arbitrary File where
 ------------------------------------------------------------------------------
 
 -- Generates several patches given a file that don't conflict
-mkGoodPPatch :: File -> Gen [Patch]
-mkGoodPPatch f =
+mkGoodPPatches :: File -> Gen ParallelPatches
+mkGoodPPatches f =
     frequency
         [ (1, return [AP (path f) (RemoveFile (contents f))]),
           (9, do
-            chs <- mkGoodCH 0 f
+            chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
 
 -- Generates several random change hunks given a file that don't conflict
-mkGoodCH :: Int -> File -> Gen [ChangeHunk]
-mkGoodCH startoff f =
+mkGoodCHs :: Int -> File -> Gen [ChangeHunk]
+mkGoodCHs startoff f =
     if startoff >= length (contents f) - 1
     then return []
-    else do off <- choose (startoff, length . contents $ f)
+    else do off <- choose (startoff, length (contents f))
             endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM (ChangeHunk off dels news :) $ mkGoodCH (endDellOff + 1) f
-
+            liftM (ChangeHunk off dels news :) $ mkGoodCHs (endDellOff + 1) f
+   where slice :: Int -> Int -> [a] -> [a]
+         slice from to xs = take (to - from + 1) (drop from xs)
 -- Take a slice (a la python) from a list
-slice :: Int -> Int -> [a] -> [a]
-slice from to xs = take (to - from + 1) (drop from xs)
 
 -- forall x,y in a list of conflictable types, x does not conflict with y
 noConflicts :: Conflictable t => [t] -> Bool
@@ -169,12 +173,12 @@ prop_maximalConflictSet (PPF p1s p2s) =
       "Either empty conflict list or empty non-conflict list"
       (isMaximalConflicts noConfs confLists)
 
--- Tests our mkGoodCH to ensure no conflicts on same file
-prop_mkGoodCH :: File -> Gen Bool
-prop_mkGoodCH f = liftM noConflicts $ mkGoodCH 0 f
+-- Tests our mkGoodCHs to ensure no conflicts on same file
+prop_mkGoodCHs :: File -> Gen Bool
+prop_mkGoodCHs f = liftM noConflicts $ mkGoodCHs 0 f
 
-prop_mkGoodPPatch :: PPatchesFromFiles -> Bool
-prop_mkGoodPPatch (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
+prop_mkGoodPPatches :: PPatchesFromFiles -> Bool
+prop_mkGoodPPatches (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
