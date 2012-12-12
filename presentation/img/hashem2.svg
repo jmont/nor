@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 15.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="732.894px" height="125.452px" viewBox="0 0 732.894 125.452" enable-background="new 0 0 732.894 125.452"
+	 xml:space="preserve">
+<g>
+	<g>
+		
+			<line fill="none" stroke="#0000FF" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="357.545" y1="65.007" x2="255.963" y2="65.007"/>
+		<g>
+			<polygon fill="#0000FF" points="260.934,58.872 261.957,59.971 256.539,65.005 261.957,70.042 260.934,71.14 254.336,65.005 			
+				"/>
+		</g>
+	</g>
+</g>
+<g>
+	<g>
+		
+			<line fill="none" stroke="#0000FF" stroke-width="1.5" stroke-linecap="round" stroke-miterlimit="10" x1="207.195" y1="65.007" x2="105.613" y2="65.007"/>
+		<g>
+			<polygon fill="#0000FF" points="110.583,58.872 111.606,59.971 106.188,65.005 111.606,70.042 110.583,71.14 103.986,65.005 			
+				"/>
+		</g>
+	</g>
+</g>
+<g>
+	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="58.124" cy="65.007" r="40.978"/>
+	<text transform="matrix(1 0 0 1 39.5479 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">A</text>
+</g>
+<g>
+	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="207.195" cy="65.007" r="40.978"/>
+	<text transform="matrix(1 0 0 1 194.6191 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">B</text>
+</g>
+<g>
+	<circle fill="#FFFFFF" stroke="#0000FF" stroke-width="2" stroke-miterlimit="10" cx="357.544" cy="65.007" r="40.979"/>
+	<text transform="matrix(1 0 0 1 338.9688 81.834)" fill="#0000FF" font-family="'Futura-Medium'" font-size="48.8255">C</text>
+</g>
+<g>
+	<path fill="#FFFFFF" stroke="#0000FF" stroke-miterlimit="10" d="M405.124,44.552c0,1.935-1.803,3.506-4.027,3.506h-19.2
+		c-2.226,0-4.028-1.571-4.028-3.506V19.689c0-1.935,1.805-3.506,4.028-3.506h19.2c2.227,0,4.027,1.571,4.027,3.506V44.552z"/>
+	<text transform="matrix(1 0 0 1 382.4844 42.4492)" fill="#0000FF" font-family="'Futura-Medium'" font-size="27.1253">1</text>
+</g>
+<g>
+	<path fill="none" d="M555.473,79.66"/>
+</g>
+<g>
+	<path fill="none" d="M670.674,62.675"/>
+</g>
+<g>
+	<g>
+		
+			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-miterlimit="10" x1="667.209" y1="62.267" x2="558.082" y2="62.267"/>
+		<g>
+			<polygon fill="#006837" points="563.052,56.132 564.075,57.231 558.657,62.266 564.075,67.302 563.052,68.4 556.455,62.266 			
+				"/>
+		</g>
+	</g>
+</g>
+<g>
+	<g>
+		
+			<line fill="none" stroke="#006837" stroke-width="1.5" stroke-miterlimit="10" x1="515.878" y1="62.676" x2="406.751" y2="62.676"/>
+		<g>
+			<polygon fill="#006837" points="411.721,56.541 412.744,57.64 407.326,62.674 412.744,67.71 411.721,68.809 405.124,62.674 			
+				"/>
+		</g>
+	</g>
+</g>
+<g>
+	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="667.209" cy="62.676" r="40.977"/>
+	<text transform="matrix(1 0 0 1 649.3477 79.5034)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">E’</text>
+</g>
+<g>
+	<path fill="#FFFFFF" stroke="#006837" stroke-miterlimit="10" d="M718.862,42.46c0,1.936-1.807,3.504-4.029,3.504h-19.199
+		c-2.225,0-4.027-1.568-4.027-3.504V17.599c0-1.937,1.805-3.508,4.027-3.508h19.199c2.225,0,4.029,1.571,4.029,3.508V42.46z"/>
+	<text transform="matrix(1 0 0 1 697.2246 40.3589)" fill="#006837" font-family="'Futura-Medium'" font-size="27.1253">2</text>
+</g>
+<g>
+	<circle fill="#FFFFFF" stroke="#006837" stroke-width="2" stroke-miterlimit="10" cx="510.125" cy="62.268" r="40.978"/>
+	<text transform="matrix(1 0 0 1 490.8369 79.0952)" fill="#006837" font-family="'Futura-Medium'" font-size="48.8255">D’</text>
+</g>
+</svg>
