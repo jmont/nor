@@ -10,8 +10,8 @@ import qualified Data.Foldable as F
 -------------------------------------------------
 
 makeSizeTwo :: String -> String
-makeSizeTwo i@(a:[]) = '0':i
-makeSizeTwo i@(a:b:[]) = i
+makeSizeTwo i@(_:[]) = '0':i
+makeSizeTwo i@(_:_:[]) = i
 
 splitInTwos :: [a] -> [[a]]
 splitInTwos (a:b:rest) = [a,b] : splitInTwos rest
@@ -30,6 +30,10 @@ instance Serialize Hash where
     get = Hash <$> get
 
 data ObjectStore a = OS { store :: Map.Map Hash a } deriving Show
+
+instance (Serialize a) => Serialize (ObjectStore a) where
+    put (OS s) = put s
+    get = OS <$> get
 
 mkEmptyOS :: ObjectStore a
 mkEmptyOS = OS Map.empty

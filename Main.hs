@@ -31,11 +31,13 @@ type World = (Core, Ephemera)
 
 -- An "empty" World with a single empty Commit as the head.
 initWorld :: World
-initWorld = let core@(commitSet,os) = initCore
+initWorld = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
 -- Location in which to save program data.
+progDirPath :: String
 progDirPath = "./.nor"
+worldPath :: String
 worldPath = progDirPath ++ "/world"
 
 -- Serialize the world to the filesystem.
@@ -51,7 +53,7 @@ getWorld :: IO World
 getWorld = do
     eitherW <- getWorld'
     case eitherW of
-        Left err -> createProgDir >> return initWorld
+        Left _ -> createProgDir >> return initWorld
         Right w -> return w
     where getWorld' :: IO (Either String World)
           getWorld' = E.catch
@@ -82,7 +84,7 @@ commit w@((_, os), eph) ("-a":names) = do
     let Just files = mapM (O.getObject os) (hashes (headC eph))
     let paths = map path files ++ names
     commit w paths
-commit w@(core, eph) names = do
+commit (core, eph) names = do
     fs <- mapM getFile names
     let fhs = addHashableAs fs
     let newCommitWithFiles = createCommit fhs (Just (headC eph))
@@ -126,10 +128,9 @@ restoreFiles fs = do
 -- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
 checkout :: World -> [String] -> IO World
-checkout w@((comSet, os), eph) [hh] =
+checkout ((comSet, os), eph) [hh] =
     let h = O.hexToHash hh
         com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
-        files = map (O.getObject os) (hashes com)
         Just dFiles = mapM (O.getObject os) (hashes (headC eph))
         Just rFiles = mapM (O.getObject os) (hashes com)
     in do deleteFiles dFiles
@@ -139,7 +140,7 @@ checkout w@((comSet, os), eph) [hh] =
 
 -- Print the files from the commit corresponding to the specified hash.
 files :: World -> [String] -> IO World
-files w@((comSet, os), headCom) [hh] = do
+files w@((comSet, os), _) [hh] = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
     let Just files = O.getObjects os (hashes com)
@@ -195,8 +196,7 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
             let Just files = mapM (O.getObject os) (hashes lca)
             let combinedPatches = sequenceParallelPatches
                                     (conflictPatches ++ noConfs)
-            let paths = map path files
-            checkout w [show (cid lca)] -- replace fs with lca's files
+            _ <- checkout w [show (cid lca)] -- replace fs with lca's files
             restoreFiles $ applyPatches combinedPatches files
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
@@ -204,8 +204,8 @@ rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
 --Runs the given command with args to alter the world.
 --Ensures that if mid-rebase, no other commands can be used.
 dispatch :: World -> String -> [String] -> IO World
-dispatch w@(_, Ephemera hc toReb) "rebase" args = dispatch' w "rebase" args
-dispatch w@(_, Ephemera hc []) cmd args = dispatch' w cmd args
+dispatch w@(_, Ephemera _ _) "rebase" args = dispatch' w "rebase" args
+dispatch w@(_, Ephemera _ []) cmd args = dispatch' w cmd args
 dispatch _ _ _ = error "Please continue rebasing before other commands"
 
 dispatch' :: World -> String -> [String] -> IO World
@@ -218,6 +218,7 @@ dispatch' w "rebase" args = rebase w args
 -- Default
 dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 
+main :: IO ()
 main = do
     w <- getWorld
     args <- getArgs

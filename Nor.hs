@@ -41,10 +41,6 @@ instance Serialize Commit where
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
 
-instance (Serialize a) => Serialize (ObjectStore a) where
-    put (OS s) = put s
-    get = OS <$> get
-
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
 
@@ -57,7 +53,7 @@ addHashableA a = do
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
 createCommit s pc = do
-   let (h,commitOS) = S.runState s mkEmptyOS
+   let (_,commitOS) = S.runState s mkEmptyOS
    let hashes = getHashes commitOS
    newState <- S.get
    let (_,os) = S.runState s newState
@@ -144,7 +140,7 @@ applyPatch p@(SP (AP ppath (RemoveFile c))) (f:fs) =
         then fs
         else error ("Contents of RemoveFile didn't match file" ++ ppath)
    else f:applyPatch p fs
-applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) [] =
+applyPatch (SP (AP ppath (Change (ChangeHunk _ _ _)))) [] =
    error ("ChangeHunk doesn't correspond to any file: " ++ ppath)
 applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
    if ppath == path f

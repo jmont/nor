@@ -155,7 +155,7 @@ changeHunksToEdits chs fileLength minoff =
        csToAdd = fileLength - (offset lastCh - minoff) - length (old lastCh)
    in edits ++ replicate csToAdd C
    where cHE :: Int -> [Edit String] -> [ChangeHunk] -> [Edit String]
-         cHE off es [] = es
+         cHE _ es [] = es
          cHE off es (ch:chs) =
             let cs = replicate (offset ch - off) C
                 is = map I (new ch)
@@ -203,8 +203,8 @@ getConflictOlds (Conflict ch1s ch2s) =
     let (fch:rest) = sort $ ch1s ++ ch2s
     in gCO' (offset fch) (old fch) rest
     where gCO' :: Int -> [String] -> [ChangeHunk] -> [String]
-          gCO' off currOlds [] = currOlds
-          gCO' off currOlds (ChangeHunk o olds news:chs)
+          gCO' _ currOlds [] = currOlds
+          gCO' off currOlds (ChangeHunk o olds _:chs)
             | (length currOlds + off) > (o + length olds) = gCO' off currOlds chs
             | otherwise = gCO' off (take (o - off) currOlds ++ olds) chs
 
@@ -213,7 +213,7 @@ mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
 mergeParallelPatches p1s p2s =
    let confs1 = map (\p -> (1, p, filter (conflicts p) p2s)) p1s
        confs2 = map (\p -> (2, p, filter (conflicts p) p1s)) p2s
-       (confGraph,adjList,keyToVertex) = G.graphFromEdges (confs1 ++ confs2)
+       (confGraph,adjList,_) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
        (noConfs,confs) = foldr (\confTree (noConfs,confs) ->
                let elems = flatten confTree
