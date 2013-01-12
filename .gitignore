@@ -5,3 +5,5 @@
 *.hi
 nor
 *.test
+presentation.html
+dist/
