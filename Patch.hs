@@ -46,7 +46,6 @@ class Conflictable t where
 
 instance Conflictable ChangeHunk where
     conflicts ch1 ch2
-       | ch1 == ch2 = False -- Same hunk
        | offset ch1 == offset ch2 = True -- Operate on the same lines
        | offset ch1 < offset ch2 =
           offset ch1 + length (old ch1) > offset ch2 -- 1 overlaps with 2
@@ -55,8 +54,6 @@ instance Conflictable ChangeHunk where
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
-   conflicts (RemoveFile c1) (RemoveFile c2) = c1 /= c2
-   conflicts (CreateFile c1) (CreateFile c2) = c1 /= c2
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
 
@@ -157,6 +154,12 @@ sequenceParallelPatches = map SP . reverse . sort
 
 -- We know that conflicting parallelpatches must all act on same path
 conflictAsPatch :: Conflict ParallelPatches -> Patch
+conflictAsPatch (Conflict [] _) = error "empty list in conflict"
+conflictAsPatch (Conflict _ []) = error "empy list in conflict"
+conflictAsPatch (Conflict [p1] [p2]) =
+  if p1 == p2
+    then p1
+    else conflictAsPatch' (AP (appath p1) (Conflict [fromPath p1] [fromPath p2]))
 conflictAsPatch (Conflict p1s p2s) =
    let p = appath $ head p1s --Conflict list should never be empty
        pa1s = map fromPath p1s

@@ -99,7 +99,7 @@ mkGoodCHs startoff f =
 -- forall x,y in a list of conflictable types, x does not conflict with y
 noConflicts :: Conflictable t => [t] -> Bool
 noConflicts chs =
-   all (\ch -> not (any (conflicts ch) chs)) chs
+   all (\ch -> onlyOne (conflicts ch) chs) chs
 
 -- A conflicting set of change hunks (Conflict ch1s ch2s) obeys the following:
 -- no conflicts within ch1s or within ch2s
@@ -227,3 +227,9 @@ prop_parallelPatchSequencing ps =
     let onlyCHs = take 5 $ filter isCH ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
     in all (== head patchesP) (tail patchesP)
+
+-- Returns true if only one element satisfies the predicate
+onlyOne :: (a -> Bool) -> [a] -> Bool
+onlyOne _ [] = False
+onlyOne p (a:as) = if p a then all (not . p) as
+                          else onlyOne p as
