@@ -99,7 +99,7 @@ mkGoodCHs startoff f =
 -- forall x,y in a list of conflictable types, x does not conflict with y
 noConflicts :: Conflictable t => [t] -> Bool
 noConflicts chs =
-   foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
+   all (\ch -> not (any (conflicts ch) chs)) chs
 
 -- A conflicting set of change hunks (Conflict ch1s ch2s) obeys the following:
 -- no conflicts within ch1s or within ch2s
@@ -108,8 +108,8 @@ noConflicts chs =
 isConflictSet :: Conflictable t => Conflict [t] -> Bool
 isConflictSet (Conflict t1s t2s) =
    noConflicts t1s && noConflicts t2s &&
-   foldr (\t acc -> any (conflicts t) t1s && acc) True t2s &&
-   foldr (\t acc -> any (conflicts t) t2s && acc) True t1s
+   all (\t -> any (conflicts t) t1s) t2s &&
+   all (\t -> any (conflicts t) t2s) t1s
 
 isIndependentOfList :: Conflictable t => t -> [t] -> Bool
 isIndependentOfList t ts = not $ any (conflicts t) ts
@@ -161,7 +161,7 @@ prop_noConfs (PPF p1s p2s) =
 prop_eachHasConflict :: PPatchesFromFiles -> Property
 prop_eachHasConflict (PPF p1s p2s) =
    let (_,confLists) = mergeParallelPatches p1s p2s
-       b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
+       b = all isConflictSet confLists
    in classify (null confLists) "Nothing conflicts" b
 
 -- Forall x in a conflict, forall y not in the conflict, x does not
@@ -226,5 +226,4 @@ prop_parallelPatchSequencing :: ParallelPatches -> Bool
 prop_parallelPatchSequencing ps =
     let onlyCHs = take 5 $ filter isCH ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
-    in foldr (\p acc -> p == head patchesP && acc)
-        True (tail patchesP)
+    in all (== head patchesP) (tail patchesP)
