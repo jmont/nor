@@ -94,7 +94,7 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
                  dels = filter eqD changes
                  adds = filter (not . eqD) changes
              in keeps ++ dels ++ adds ++ toCanonical rest'
-         mapFun :: (Diff t) -> Edit t
+         mapFun :: Diff t -> Edit t
          mapFun (Both _ _) = C
          mapFun (First t) = D t
          mapFun (Second t) = I t
@@ -150,7 +150,7 @@ changeHunksToEdits chs fileLength minoff =
 
 --ASSUMING NO CONFLICTS IN A PARALLEL PATCH SET
 sequenceParallelPatches :: ParallelPatches -> [SequentialPatch]
-sequenceParallelPatches = (map SP) . reverse . sort
+sequenceParallelPatches = map SP . reverse . sort
 
 (>||<)  :: ParallelPatches -> ParallelPatches -> (ParallelPatches, [Conflict ParallelPatches])
 (>||<) = mergeParallelPatches
