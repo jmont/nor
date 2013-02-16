@@ -1,6 +1,5 @@
 module Patch where
 import Data.Algorithm.Diff
-import qualified Data.Map as Map
 import Data.List
 import Data.Graph as G
 import Data.Tree as T

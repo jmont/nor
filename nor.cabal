@@ -17,5 +17,5 @@ executable nor
     cereal,
     bytestring,
     directory
-  ghc-options: -Wall
+  ghc-options: -Wall -fno-warn-name-shadowing
 

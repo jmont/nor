@@ -1,6 +1,6 @@
 module ObjectStore where
 import Control.Applicative
-import Crypto.Hash.SHA1 (hashlazy, hash)
+import Crypto.Hash.SHA1 (hash)
 import Data.Serialize
 import Numeric (showHex, readHex)
 import qualified Data.Map as Map
@@ -22,9 +22,11 @@ hexToHash hx = Hash $ Strict.pack . map fst
                     . concatMap readHex . splitInTwos $ hx
 
 newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
+
 instance Show Hash where
     show = concatMap makeSizeTwo
                   . map (`showHex` "") . Strict.unpack . getHash
+
 instance Serialize Hash where
     put (Hash h) = put h
     get = Hash <$> get

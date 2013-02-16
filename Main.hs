@@ -2,9 +2,7 @@ import Control.Monad
 import System.Environment
 import System.Directory
 import System.IO
-import Data.List
 import Data.Serialize
-import Numeric
 import qualified Control.Exception as E
 import qualified Data.Set as Set
 import qualified Data.ByteString as S
@@ -151,7 +149,7 @@ files w@((comSet, os), _) [hh] = do
 -- On the commit corresponding to the specified hash, replay commits
 -- between the least common ancestor of the head and the commit.
 rebase :: World -> [String] -> IO World
-rebase (core@(comSet,os), eph) ["--continue"] =
+rebase (core@(_,os), eph) ["--continue"] =
    -- implicit commit
    let toPaths = getPaths (headC eph)
        fromPaths = getPaths . head . toRebase $ eph
@@ -162,7 +160,7 @@ rebase (core@(comSet,os), eph) ["--continue"] =
          getPaths c =
             let Just files = O.getObjects os (hashes c)
             in map path files
-rebase w@(core@(comSet,os), eph) [hh] =
+rebase (core@(comSet,_), eph) [hh] =
    let upstreamHash = O.hexToHash hh
        upstreamCom = commitByHash comSet upstreamHash
        lca = getLca core (headC eph) upstreamCom
@@ -177,7 +175,7 @@ commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 -- found or rebase finishes.  If conflicts found, write conflicts to files
 -- for the user to edit.
 rebaseContinue :: World -> IO World
-rebaseContinue w@(core@(comSet, os), eph) = case toRebase eph of
+rebaseContinue w@(core@(_, os), eph) = case toRebase eph of
    [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
    (c:cs) ->
       let hc = headC eph

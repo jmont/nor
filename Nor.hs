@@ -4,12 +4,9 @@ import Control.Applicative
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
-import Data.List
-import Data.Algorithm.Diff
 import Patch
 import ObjectStore
-import Crypto.Hash.SHA1 (hashlazy, hash)
-import qualified Data.ByteString.Lazy as Lazy
+import Crypto.Hash.SHA1 (hash)
 import qualified Data.ByteString as Strict
 import Data.Serialize
 import qualified Control.Monad.State as S
