@@ -107,11 +107,10 @@ getEdits t1s t2s = toCanonical $ map mapFun $ getDiff t1s t2s
                  dels = filter eqD changes
                  adds = filter (not . eqD) changes
              in keeps ++ dels ++ adds ++ toCanonical rest'
-
-         mapFun :: (DI,t) -> Edit t
-         mapFun (B,_) = C
-         mapFun (F,t) = D t
-         mapFun (S,t) = I t
+         mapFun :: (Diff t) -> Edit t
+         mapFun (Both _ _) = C
+         mapFun (First t) = D t
+         mapFun (Second t) = I t
 
 applyEdits :: (Show t, Eq t) => [Edit t] -> [t] -> [t]
 applyEdits es strs = aE es strs
