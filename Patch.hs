@@ -74,18 +74,6 @@ isCH :: Patch -> Bool
 isCH (AP _ (Change _)) = True
 isCH _ = False
 
-ungroupByPath :: [AtPath [t]] -> [AtPath t]
-ungroupByPath = concatMap moveAPIn
-    where moveAPIn :: AtPath [t] -> [AtPath t]
-          moveAPIn (AP p ts) = map (AP p) ts
-
-groupByPath :: [AtPath t] -> [AtPath [t]]
-groupByPath aps =
-    let apls = groupBy (\(AP p1 _) (AP p2 _) -> p1 == p2) aps
-    in map moveAPOut apls
-    where moveAPOut :: [AtPath t] -> AtPath [t]
-          moveAPOut (aps@(a:_)) = AP (appath a) $ map fromPath aps
-
 eqC :: Eq t => Edit t -> Bool
 eqC = (C ==)
 

@@ -214,33 +214,6 @@ prop_getConflictOlds c0 c1 c2 =
 
 -- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
 -- more conflicts
-prop_viewableConflict' :: PPatchesFromFiles -> Property
-prop_viewableConflict' (PPF p1s p2s) =
-    let (noConfs,confs) = p1s `mergeParallelPatches` p2s
-    -- confs :: [Conflict ParallelPatches]
-    -- confs :: [Conflict [Patches]]
-    -- confs :: [Conflict [AtPath PatchAction]]
-        foo =   concatMap (\(Conflict appas1 appas2) ->
-                       let gpa1s = groupByPath appas1
-                       -- gpa1s :: [AtPath [PatchAction]] from state1
-                           gpa2s = groupByPath appas2
-                       -- gpa2s :: [AtPath [PatchAction]] from state2
-                           bar = groupByPath (gpa1s ++ gpa2s)
-                       -- one [PatchAction] at each path per state
-                       -- bar :: [AtPath [[PatchAction]]] with each path
-                       -- having a list of two elements
-                       in bar)
-               confs --
-        -- foo :: [AtPath [[PatchAction]]]
-        viewableConflicts = map (\(AP p [pa1s,pa2s]) ->
-                        conflictAsPatch' (AP p (Conflict pa1s pa2s)))
-               foo
-        -- viewableConflicts :: [Patch]
-    in classify (null confs) "Empty non-conflict list"
-        $ noConflicts (viewableConflicts ++ noConfs)
-
--- Tests that conflictAsCH (creating a viewable conflict) doesn't introduce
--- more conflicts
 prop_viewableConflict :: PPatchesFromFiles -> Property
 prop_viewableConflict (PPF p1s p2s) =
    let (noConfs,confs) = p1s >||< p2s
@@ -255,10 +228,3 @@ prop_parallelPatchSequencing ps =
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
     in foldr (\p acc -> p == head patchesP && acc)
         True (tail patchesP)
-
-prop_ungroupByPath :: [AtPath [Int]] -> Property
-prop_ungroupByPath aps = all (not . null . fromPath) aps ==>
-    aps == groupByPath (ungroupByPath aps)
-
-prop_groupByPath :: [AtPath Int] -> Bool
-prop_groupByPath aps = aps == ungroupByPath (groupByPath aps)
