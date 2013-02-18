@@ -213,7 +213,7 @@ mergeParallelPatches p1s p2s =
                      in (ch:noConfs,confs)
                   else (noConfs, Conflict fromP1 fromP2 : confs))
              ([],[]) conflictTrees
-   in (Set.toList (Set.fromList noConfs), confs)
+   in (noConfs, confs)
          --Detects conflicts within two lists of changehunks
    where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])
