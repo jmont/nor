@@ -200,18 +200,19 @@ getConflictOlds (Conflict ch1s ch2s) =
 mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
                       (ParallelPatches,[Conflict ParallelPatches])
 mergeParallelPatches p1s p2s =
-   let confs1 = map (\p -> (1, p, filter (conflicts p) p2s)) p1s
-       confs2 = map (\p -> (2, p, filter (conflicts p) p1s)) p2s
+   let confs1 = map (\p -> (Left (), p, filter (conflicts p) p2s)) p1s
+       confs2 = map (\p -> (Right (), p, filter (conflicts p) p1s)) p2s
        (confGraph,adjList,_) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
        (noConfs,confs) = foldr (\confTree (noConfs,confs) ->
                let elems = flatten confTree
-                   (fromP1,fromP2) = partition elems (== 1) adjList
-               in if length elems == 1
-                  then
-                     let (_,ch,_) = adjList (head elems)
-                     in (ch:noConfs,confs)
-                  else (noConfs, Conflict fromP1 fromP2 : confs))
+                   (fromPP1,fromPP2) = partition elems (== Left ()) adjList
+               in case elems of
+                    [] -> error "Empty connected component"
+                    [unconnectedV] ->
+                      let (_,ch,_) = adjList unconnectedV
+                      in (ch:noConfs,confs)
+                    connected -> (noConfs, Conflict fromPP1 fromPP2 : confs))
              ([],[]) conflictTrees
    in (noConfs, confs)
          --Detects conflicts within two lists of changehunks
