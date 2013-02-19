@@ -43,6 +43,21 @@ data RebaseRes = Succ { core :: Core
                | Conf { conflicts :: [Conflict ParallelPatches]
                       , patches :: ParallelPatches }
 
+
+-- the following functions are pure and can have QC properties
+rebaseStep :: Core -> Commit -> [Commit] -> RebaseRes
+rebaseStep core hc [] = Succ core hc
+rebaseStep core@(_,os) hc (tor:tors) = let
+    lca = getLca core hc tor
+    (noConfs, confs) = mergeCommit os hc tor lca
+    in if null confs
+        then
+            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
+                (head',core') = S.runState (addCommit mergedC) core
+            in Succ core' head'
+        else
+            Conf confs noConfs
+
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
 
