@@ -50,13 +50,15 @@ addHashableA a = do
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
 createCommit s pc = do
-   let (_,commitOS) = S.runState s mkEmptyOS
-   let hashes = getHashes commitOS
-   newState <- S.get
-   let (_,os) = S.runState s newState
-   let Just pcid = liftM cid pc
-   S.put os
-   return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
+    -- Build object store of all files in the commit to get the hashes
+    let (_,commitOS) = S.runState s mkEmptyOS
+    let hashes = getHashes commitOS
+    -- Put the files into the objectsore given to the function
+    newState <- S.get
+    let (_,os) = S.runState s newState
+    let Just pcid = liftM cid pc
+    S.put os
+    return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
 
 addCommit :: WithObjects File Commit -> S.State Core Commit
 addCommit s = S.state (\(commitS, os) ->
