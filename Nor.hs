@@ -38,6 +38,11 @@ instance Serialize Commit where
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
 
+data RebaseRes = Succ { core :: Core
+                      , newHead :: Commit }
+               | Conf { conflicts :: [Conflict ParallelPatches]
+                      , patches :: ParallelPatches }
+
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
 
