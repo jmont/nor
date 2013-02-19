@@ -58,6 +58,29 @@ rebaseStep core@(_,os) hc (tor:tors) = let
         else
             Conf confs noConfs
 
+type ResolvedConflicts = ParallelPatches
+
+resolve :: Core -> Commit -> ResolvedConflicts -> RebaseRes
+resolve core hc rconfs =
+
+--   the following functions are impure and are used to interact with
+--   the user
+-- pickle :: Kont -> IO ()
+-- unpickle :: IO Kont
+-- readResolution :: IO ResolvedConflicts
+
+-- rebase :: Arguments -> IO (Maybe Stuff)
+-- rebase args = takeStep (rebaseStep args)
+
+-- takeStep :: Result -> IO Maybe STUFF
+-- takeStep (Success answer) =  return $ Just answer
+-- takeStep (Conflict k) = pickle k >> return Nothing
+
+-- finishRebase resolution =
+--    do k <- unpickle
+--       takeStep (resolve k resolution)
+
+
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
 
