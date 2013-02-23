@@ -176,7 +176,7 @@ commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 -- for the user to edit.
 rebaseContinue :: World -> IO World
 rebaseContinue w@(core@(_, os), eph) = case toRebase eph of
-   [] -> putStrLn ("Updated repo to " ++ show (cid  (headC eph))) >> return w
+   [] -> checkout w [(show . cid . headC) eph] >> return w
    (c:cs) ->
       let hc = headC eph
           lca = getLca core hc c
