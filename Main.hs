@@ -165,7 +165,24 @@ rebase (core@(comSet,_), eph) [hh] =
        upstreamCom = commitByHash comSet upstreamHash
        lca = getLca core (headC eph) upstreamCom
        toR = reverse $ takeWhile (/= lca) (ancestorList core (headC eph))
-   in rebaseContinue (core, Ephemera upstreamCom toR)
+   in rebaseContinue (core, Ephemera (headC eph) toR)
+
+rebaseContinue :: World -> IO World
+rebaseContinue (core, Ephemera hc toRs) =
+   case rebaseStep core hc toRs of
+        Succ core' head' ->
+            let w' = (core', Ephemera head' [])
+            in checkout w' ((show . cid) head')
+        Conf (core'@(_,os)) head' confs noConfs toRs ->
+            let conflictPatches = map conflictAsPatch confs
+                Just files = mapM (O.getObject os) (hashes lca)
+                combinedPatches = sequenceParallelPatches
+                                    (conflictPatches ++ noConfs)
+            in do
+              checkout w [show (cid lca)] -- replace fs with lca's files
+              restoreFiles $ applyPatches combinedPatches files
+              putStrLn "Conflicts! Fix them and run nor rebase --continue"
+              return (core', Ephemera head' toRs)
 
 -- Lookup a commit by its hash
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
@@ -174,31 +191,31 @@ commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 -- Replay commits sequentially from Ephemeral toRebase list until a conflict
 -- found or rebase finishes.  If conflicts found, write conflicts to files
 -- for the user to edit.
-rebaseContinue :: World -> IO World
-rebaseContinue w@(core@(_, os), eph) = case toRebase eph of
-   [] -> checkout w [(show . cid . headC) eph] >> return w
-   (c:cs) ->
-      let hc = headC eph
-          lca = getLca core hc c
-          (noConfs, confs) = mergeCommit os hc c lca
-      in if null confs
-         then
-            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
-                (head',core') = State.runState (addCommit mergedC) core
-                w' = (core', Ephemera head' cs)
-            in putStrLn ("Merged " ++ show (cid hc) ++ " and "
-                                   ++ show (cid c)) >>
-               rebaseContinue w'
-         else do
-            let conflictPatches = map conflictAsPatch confs
-            let Just files = mapM (O.getObject os) (hashes lca)
-            let combinedPatches = sequenceParallelPatches
-                                    (conflictPatches ++ noConfs)
-            checkout w [show (cid lca)] -- replace fs with lca's files
-            restoreFiles $ applyPatches combinedPatches files
-            putStrLn "Conflicts! Fix them and run nor rebase --continue"
-            return (core, Ephemera (headC eph) (toRebase eph))
-
+--rebaseContinue :: World -> IO World
+--rebaseContinue w@(core@(_, os), eph) = case toRebase eph of
+--   [] -> checkout w [(show . cid . headC) eph]
+--   (c:cs) ->
+--      let hc = headC eph
+--          lca = getLca core hc c
+--          (noConfs, confs) = mergeCommit os hc c lca
+--      in if null confs
+--         then
+--            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
+--                (head',core') = State.runState (addCommit mergedC) core
+--                w' = (core', Ephemera head' cs)
+--            in putStrLn ("Merged " ++ show (cid hc) ++ " and "
+--                                   ++ show (cid c)) >>
+--               rebaseContinue w'
+--         else do
+--            let conflictPatches = map conflictAsPatch confs
+--            let Just files = mapM (O.getObject os) (hashes lca)
+--            let combinedPatches = sequenceParallelPatches
+--                                    (conflictPatches ++ noConfs)
+--            checkout w [show (cid lca)] -- replace fs with lca's files
+--            restoreFiles $ applyPatches combinedPatches files
+--            putStrLn "Conflicts! Fix them and run nor rebase --continue"
+--            return (core, Ephemera (headC eph) (toRebase eph))
+--
 --Runs the given command with args to alter the world.
 --Ensures that if mid-rebase, no other commands can be used.
 dispatch :: World -> String -> [String] -> IO World

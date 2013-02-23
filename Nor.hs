@@ -40,28 +40,47 @@ type Core = (Set.Set Commit, ObjectStore File)
 
 data RebaseRes = Succ { core :: Core
                       , newHead :: Commit }
-               | Conf { conflicts :: [Conflict ParallelPatches]
-                      , patches :: ParallelPatches }
+               | Conf { core :: Core
+                      , newHead :: Commit
+                      , cConfs :: [Conflict ParallelPatches]
+                      , cNoConfs :: ParallelPatches
+                      , ctoRebas :: [Commit]}
+
 
 
 -- the following functions are pure and can have QC properties
 rebaseStep :: Core -> Commit -> [Commit] -> RebaseRes
 rebaseStep core hc [] = Succ core hc
-rebaseStep core@(_,os) hc (tor:tors) = let
+rebaseStep core@(_,os) hc (tor:tors) =
+  let
     lca = getLca core hc tor
     (noConfs, confs) = mergeCommit os hc tor lca
     in if null confs
         then
             let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
                 (head',core') = S.runState (addCommit mergedC) core
-            in Succ core' head'
+            in rebaseStep core' head' tors
         else
-            Conf confs noConfs
+            Conf core hc confs noConfs tors
+
 
 type ResolvedConflicts = ParallelPatches
+resolver :: RebaseRes -> ResolvedConflicts
+resolver = error "WIP"
 
-resolve :: Core -> Commit -> ResolvedConflicts -> RebaseRes
-resolve core hc rconfs =
+chooseLeft :: RebaseRes -> ResolvedConflicts
+chooseLeft (Conf _ _ confs patches _) =
+  patches ++ concatMap (\(Conflict p1s _) -> p1s) confs
+
+chooseRight :: RebaseRes -> ResolvedConflicts
+chooseRight (Conf _ _ confs patches _) =
+  patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
+
+--resolve :: Core -> Commit -> ResolvedConflicts -> [Commit] -> RebaseRes
+--resolve core hc rconfs tors =
+--    let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
+--        (head',core') = S.runState (addCommit mergedC) core
+--    in rebaseStep core' head' tors
 
 --   the following functions are impure and are used to interact with
 --   the user
