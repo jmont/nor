@@ -109,7 +109,7 @@ patchFromFiles fas fbs =
     where alterFun :: File -> Maybe [PatchAction] -> Maybe [PatchAction]
           alterFun newFile Nothing =
              Just [CreateFile (contents newFile)]
-          alterFun changedFile (Just [Change (ChangeHunk _ fContents []),_]) =
+          alterFun changedFile (Just [RemoveFile fContents]) =
              Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
           alterFun _ _ = error "Can't Happen"
 
