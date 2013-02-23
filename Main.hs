@@ -194,7 +194,7 @@ rebaseContinue w@(core@(_, os), eph) = case toRebase eph of
             let Just files = mapM (O.getObject os) (hashes lca)
             let combinedPatches = sequenceParallelPatches
                                     (conflictPatches ++ noConfs)
-            _ <- checkout w [show (cid lca)] -- replace fs with lca's files
+            checkout w [show (cid lca)] -- replace fs with lca's files
             restoreFiles $ applyPatches combinedPatches files
             putStrLn "Conflicts! Fix them and run nor rebase --continue"
             return (core, Ephemera (headC eph) (toRebase eph))
