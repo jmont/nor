@@ -102,10 +102,10 @@ mkNonconflictingBranches = do
     let core@(cs, os) = initCore
     let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
     let (hc, core') = S.runState (addCommit firstC) core
-    --let (_, core'') = foldr ffun (hc, core') br1s
-    --let (_, core''') = foldr ffun (hc, core'') br2s
-    return $ snd (ffun (head br1s) (hc, core'))
-    where ffun p (hc, core@(_,os)) =
+    let (_, core'') = foldl ffun (hc, core') br1s
+    let (_, core''') = foldl ffun (hc, core'') br2s
+    return $ core'''
+    where ffun (hc, core@(_,os)) p =
               let Just f = mapM (O.getObject os) (hashes hc)
                   hashableF = addHashableAs (applyPatch p f)
                   newCommitWithFiles = createCommit hashableF (Just hc)
@@ -270,4 +270,3 @@ chooseLeft (Conf _ _ confs patches _ _) =
 chooseRight :: RebaseRes -> ResolvedConflicts
 chooseRight (Conf _ _ confs patches _ _) =
   patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
-
