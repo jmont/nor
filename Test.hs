@@ -11,6 +11,8 @@ import Data.List
 import Nor
 import Cases
 import qualified Data.Set as Set
+import qualified Control.Monad.State as S
+import qualified ObjectStore as O
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
@@ -81,6 +83,33 @@ mkGoodPPatches f =
           (9, do
             chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
+
+--prop_applyGoodPPatches :: File -> Gen Bool
+--prop_applyGoodPPatches f = do
+--    ps <- mkGoodPPatches f
+--    let sps = sequenceParallelPatches ps
+--    applyPatches sps [f]
+--    return True
+
+mkNonconflictingBranches :: Gen Core
+mkNonconflictingBranches = do
+    f <- arbitrary `suchThat` ((>10) . length . contents)
+    ps <- mkGoodPPatches f `suchThat` ((>1) . length)
+    split <- choose(0, length ps)
+    let (br1p, br2p) = splitAt split (sort ps)
+    let br1s = sequenceParallelPatches br1p
+    let br2s = sequenceParallelPatches br2p
+    let core@(cs, os) = initCore
+    let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
+    let (hc, core') = S.runState (addCommit firstC) core
+    --let (_, core'') = foldr ffun (hc, core') br1s
+    --let (_, core''') = foldr ffun (hc, core'') br2s
+    return $ snd (ffun (head br1s) (hc, core'))
+    where ffun p (hc, core@(_,os)) =
+              let Just f = mapM (O.getObject os) (hashes hc)
+                  hashableF = addHashableAs (applyPatch p f)
+                  newCommitWithFiles = createCommit hashableF (Just hc)
+              in S.runState (addCommit newCommitWithFiles) core
 
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCHs :: Int -> File -> Gen [ChangeHunk]
