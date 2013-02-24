@@ -38,6 +38,7 @@ instance Serialize Commit where
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
 
+type ResolvedConflicts = ParallelPatches
 data RebaseRes = Succ { core :: Core
                       , newHead :: Commit }
                | Conf { core :: Core
@@ -57,9 +58,8 @@ rebaseStart core fromC toC =
 rebaseStep :: Core -> Commit -> [Commit] -> RebaseRes
 rebaseStep core hc [] = Succ core hc
 rebaseStep core@(_,os) hc (tor:tors) =
-  let
-    lca = getLca core hc tor
-    (noConfs, confs) = mergeCommit os hc tor lca
+    let lca = getLca core hc tor
+        (noConfs, confs) = mergeCommit os hc tor lca
     in if null confs
         then
             let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
@@ -68,19 +68,8 @@ rebaseStep core@(_,os) hc (tor:tors) =
         else
             Conf core hc confs noConfs (tor:tors) lca -- KEEP tor when Conf
 
-type ResolvedConflicts = ParallelPatches
-resolver :: RebaseRes -> ResolvedConflicts
-resolver = error "WIP"
-
-chooseLeft :: RebaseRes -> ResolvedConflicts
-chooseLeft (Conf _ _ confs patches _ _) =
-  patches ++ concatMap (\(Conflict p1s _) -> p1s) confs
-
-chooseRight :: RebaseRes -> ResolvedConflicts
-chooseRight (Conf _ _ confs patches _ _) =
-  patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
-
-resolve :: Core -> Commit -> ResolvedConflicts -> [Commit] -> Commit -> RebaseRes
+resolve :: Core -> Commit -> ResolvedConflicts ->
+           [Commit] -> Commit -> RebaseRes
 resolve core hc rconfs toRs lca =
   let mergedC = parallelPatchesToCommit lca rconfs (Just (cid hc))
       (head',core') = S.runState (addCommit mergedC) core
@@ -94,23 +83,6 @@ resolveWithFiles (core@(_,os)) hc newFiles (toR:toRs) =
         newCommitWithFiles = createCommit hashableFs (Just hc)
         (newHead,newCore) = S.runState (addCommit newCommitWithFiles) core
     in rebaseStep newCore newHead toRs
---   the following functions are impure and are used to interact with
---   the user
--- pickle :: Kont -> IO ()
--- unpickle :: IO Kont
--- readResolution :: IO ResolvedConflicts
-
--- rebase :: Arguments -> IO (Maybe Stuff)
--- rebase args = takeStep (rebaseStep args)
-
--- takeStep :: Result -> IO Maybe STUFF
--- takeStep (Success answer) =  return $ Just answer
--- takeStep (Conflict k) = pickle k >> return Nothing
-
--- finishRebase resolution =
---    do k <- unpickle
---       takeStep (resolve k resolution)
-
 
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)

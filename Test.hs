@@ -233,3 +233,12 @@ prop_parallelPatchSequencing ps =
 noDistinctPairs :: (a -> a -> Bool) -> [a] -> Bool
 noDistinctPairs p [] = True
 noDistinctPairs p (a:as) = not (any (p a) as) && noDistinctPairs p as
+
+chooseLeft :: RebaseRes -> ResolvedConflicts
+chooseLeft (Conf _ _ confs patches _ _) =
+  patches ++ concatMap (\(Conflict p1s _) -> p1s) confs
+
+chooseRight :: RebaseRes -> ResolvedConflicts
+chooseRight (Conf _ _ confs patches _ _) =
+  patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
+
