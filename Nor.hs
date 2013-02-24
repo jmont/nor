@@ -66,7 +66,7 @@ rebaseStep core@(_,os) hc (tor:tors) =
                 (head',core') = S.runState (addCommit mergedC) core
             in rebaseStep core' head' tors
         else
-            Conf core hc confs noConfs tors lca
+            Conf core hc confs noConfs (tor:tors) lca -- KEEP tor when Conf
 
 type ResolvedConflicts = ParallelPatches
 resolver :: RebaseRes -> ResolvedConflicts
