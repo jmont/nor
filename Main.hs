@@ -7,6 +7,7 @@ import qualified Control.Exception as E
 import qualified Data.Set as Set
 import qualified Data.ByteString as S
 import qualified ObjectStore as O
+import qualified Data.List as List
 import Nor
 import qualified Control.Monad.State as State
 import Control.Applicative
@@ -149,40 +150,34 @@ files w@((comSet, os), _) [hh] = do
 -- On the commit corresponding to the specified hash, replay commits
 -- between the least common ancestor of the head and the commit.
 rebase :: World -> [String] -> IO World
-rebase (core@(_,os), eph) ["--continue"] =
-   -- implicit commit
+rebase (core@(_,os), eph) ["--continue"] = do
    let toPaths = getPaths (headC eph)
-       fromPaths = getPaths . head . toRebase $ eph
-       pathSet = Set.fromList (fromPaths ++ toPaths)
-   in commit (core, Ephemera (headC eph) (tail (toRebase eph)))
-             (Set.toList pathSet) >>= rebaseContinue
+   let fromPaths = getPaths . head . toRebase $ eph
+   newFiles <- mapM getFile $ List.nub $ fromPaths ++ toPaths
+   rebaseStop $ resolveWithFiles core (headC eph) newFiles (toRebase eph)
    where getPaths :: Commit -> [Path]
          getPaths c =
             let Just files = O.getObjects os (hashes c)
             in map path files
 rebase (core@(comSet,_), eph) [hh] =
-   let upstreamHash = O.hexToHash hh
-       upstreamCom = commitByHash comSet upstreamHash
-       lca = getLca core (headC eph) upstreamCom
-       toR = reverse $ takeWhile (/= lca) (ancestorList core (headC eph))
-   in rebaseContinue (core, Ephemera (headC eph) toR)
+   let toHash = O.hexToHash hh
+       toCom = commitByHash comSet toHash
+   in rebaseStop $ rebaseStart core (headC eph) toCom
 
-rebaseContinue :: World -> IO World
-rebaseContinue (core, Ephemera hc toRs) =
-   case rebaseStep core hc toRs of
-        Succ core' head' ->
-            let w' = (core', Ephemera head' [])
-            in checkout w' ((show . cid) head')
-        Conf (core'@(_,os)) head' confs noConfs toRs ->
-            let conflictPatches = map conflictAsPatch confs
-                Just files = mapM (O.getObject os) (hashes lca)
-                combinedPatches = sequenceParallelPatches
-                                    (conflictPatches ++ noConfs)
-            in do
-              checkout w [show (cid lca)] -- replace fs with lca's files
-              restoreFiles $ applyPatches combinedPatches files
-              putStrLn "Conflicts! Fix them and run nor rebase --continue"
-              return (core', Ephemera head' toRs)
+rebaseStop :: RebaseRes -> IO World
+rebaseStop (Succ core head) =
+    let w' = (core, Ephemera head [])
+    in checkout w' [((show . cid) head)]
+rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
+    let conflictPatches = map conflictAsPatch confs
+        Just files = mapM (O.getObject os) (hashes lca)
+        combinedPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
+        w = (core, Ephemera head toRs)
+    in do
+      checkout w [show (cid lca)] -- replace fs with lca's files
+      restoreFiles $ applyPatches combinedPatches files
+      putStrLn "Conflicts! Fix them and run nor rebase --continue"
+      return w
 
 -- Lookup a commit by its hash
 commitByHash :: Set.Set Commit -> O.Hash -> Commit
