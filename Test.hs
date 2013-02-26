@@ -272,3 +272,18 @@ chooseLeft (Conf _ _ confs patches _ _) =
 chooseRight :: RebaseRes -> ResolvedConflicts
 chooseRight (Conf _ _ confs patches _ _) =
   patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
+
+prop_rebaseEq :: BranchedCore -> Gen Bool
+prop_rebaseEq (BC core b1 b2) =
+  case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
+   (Succ (_,os1) hc1, Succ (_,os2) hc2) ->
+      let reb1Files = fromJust $ mapM (O.getObject os1) (hashes hc1)
+          reb2Files = fromJust $ mapM (O.getObject os2) (hashes hc2)
+      in return $ reb1Files == reb2Files
+   _ -> return False
+
+prop_rebaseSucc :: BranchedCore -> Gen Bool
+prop_rebaseSucc (BC core b1 b2) =
+  case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
+    (Succ _ _, Succ _ _) -> return True
+    _ -> return False
