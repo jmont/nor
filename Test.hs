@@ -84,12 +84,6 @@ mkGoodPPatches f =
             chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
 
---prop_applyGoodPPatches :: File -> Gen Bool
---prop_applyGoodPPatches f = do
---    ps <- mkGoodPPatches f
---    let sps = sequenceParallelPatches ps
---    applyPatches sps [f]
---    return True
 
 mkNonconflictingBranches :: Gen Core
 mkNonconflictingBranches = do
