@@ -8,11 +8,39 @@ import Test.QuickCheck.All
 import Control.Applicative
 import Control.Monad
 import Data.List
+import Data.Maybe
 import Nor
 import Cases
 import qualified Data.Set as Set
 import qualified Control.Monad.State as S
 import qualified ObjectStore as O
+
+data BranchedCore = BC Core Commit Commit
+    deriving (Show)
+instance Arbitrary BranchedCore where
+  arbitrary = do
+    f <- arbitrary `suchThat` ((>10) . length . contents)
+    ps <- mkGoodPPatches f `suchThat` ((>1) . length)
+    split <- choose(0, length ps)
+    let (br1p, br2p) = splitAt split (sort ps)
+    let br1s = sequenceParallelPatches br1p
+    let br2s = sequenceParallelPatches br2p
+    let core@(cs, os) = initCore
+    let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
+    let (hc, core') = S.runState (addCommit firstC) core
+    let (branch1, core'') = foldl applyPatchToCore (hc, core') br1s
+    let (branch2, core''') = foldl applyPatchToCore (hc, core'') br2s
+    return $ BC core''' branch1 branch2
+    where applyPatchToCore :: (Commit,Core) -> SequentialPatch -> (Commit,Core)
+          applyPatchToCore (hc, core@(_,os)) p =
+              let Just f = mapM (O.getObject os) (hashes hc)
+                  hashableF = addHashableAs (applyPatch p f)
+                  newCommitWithFiles = createCommit hashableF (Just hc)
+              in S.runState (addCommit newCommitWithFiles) core
+--  shrink (BC (comSet,os) b1 b2)
+--   | parent b1 == parent b2 = []
+--   | otherwise              =
+--      (BC (comSet,os) b1 (parent b2)) : shrink (BC (comSet,os) (parent b2) b1)
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
@@ -84,26 +112,6 @@ mkGoodPPatches f =
             chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
 
-
-mkNonconflictingBranches :: Gen Core
-mkNonconflictingBranches = do
-    f <- arbitrary `suchThat` ((>10) . length . contents)
-    ps <- mkGoodPPatches f `suchThat` ((>1) . length)
-    split <- choose(0, length ps)
-    let (br1p, br2p) = splitAt split (sort ps)
-    let br1s = sequenceParallelPatches br1p
-    let br2s = sequenceParallelPatches br2p
-    let core@(cs, os) = initCore
-    let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
-    let (hc, core') = S.runState (addCommit firstC) core
-    let (_, core'') = foldl ffun (hc, core') br1s
-    let (_, core''') = foldl ffun (hc, core'') br2s
-    return $ core'''
-    where ffun (hc, core@(_,os)) p =
-              let Just f = mapM (O.getObject os) (hashes hc)
-                  hashableF = addHashableAs (applyPatch p f)
-                  newCommitWithFiles = createCommit hashableF (Just hc)
-              in S.runState (addCommit newCommitWithFiles) core
 
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCHs :: Int -> File -> Gen [ChangeHunk]
