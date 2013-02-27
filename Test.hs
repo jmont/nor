@@ -19,9 +19,9 @@ data BranchedCore = BC Core Commit Commit
     deriving (Show)
 instance Arbitrary BranchedCore where
   arbitrary = do
-    f <- arbitrary `suchThat` ((>10) . length . contents)
-    ps <- mkGoodPPatches f `suchThat` ((>1) . length)
-    split <- choose(0, length ps)
+    f <- arbitrary `suchThat` ((>7) . length . contents)
+    ps <- mkGoodPPatches f `suchThat` ((>2) . length)
+    split <- choose (1, length ps - 1)
     let (br1p, br2p) = splitAt split (sort ps)
     let br1s = sequenceParallelPatches br1p
     let br2s = sequenceParallelPatches br2p
