@@ -10,7 +10,7 @@ import Control.Monad
 import Data.List
 import Data.Maybe
 import Nor
-import Cases
+import Main
 import qualified Data.Set as Set
 import qualified Control.Monad.State as S
 import qualified ObjectStore as O
@@ -287,3 +287,16 @@ prop_rebaseSucc (BC core b1 b2) =
   case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
     (Succ _ _, Succ _ _) -> return True
     _ -> return False
+
+failureWorld :: IO World
+failureWorld = do
+  bcs <- sample' arbitrary
+  let mBcs = find (not . succeeds) bcs
+  case mBcs of
+    Just (BC core b1 b2) -> return (core, Ephemera b1 [])
+    Nothing -> error "whups"
+  where succeeds :: BranchedCore -> Bool
+        succeeds (BC core b1 b2) =
+         case rebaseStart core b1 b2 of
+          Succ _ _ -> True
+          otherwise -> False
