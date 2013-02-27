@@ -8,6 +8,7 @@ import Test.QuickCheck.All
 import Control.Applicative
 import Control.Monad
 import Data.List
+import qualified Data.Char as Char
 import Data.Maybe
 import Nor
 import Main
@@ -92,12 +93,28 @@ instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
         x <- arbitrary
         Conflict <$> return x <*> arbitrary `suchThat` conflicts x
 
+
+goodChars :: String
+goodChars = ['a'..'z'] ++ ['A'..'Z']
+
+data AsciiChar = AsciiChar Char
+instance Arbitrary AsciiChar where
+    --arbitrary = arbitrary `suchThat` Char.isAscii >>= return . AsciiChar
+    arbitrary = elements goodChars >>= return . AsciiChar
+type AsciiStr = [AsciiChar]
+
+asciiChartoChar :: AsciiChar -> Char
+asciiChartoChar (AsciiChar ch) = ch
+
+asciiStrToString :: AsciiStr -> String
+asciiStrToString aStr = map asciiChartoChar aStr
+
 instance Arbitrary File where
     arbitrary = do
         NonNegative len <- arbitrary
         conts <- arbitrary
         NonEmpty fpath <- arbitrary
-        return $ File fpath (take len conts)
+        return $ File (asciiStrToString fpath) (take len (map asciiStrToString conts))
 
 ------------------------------------------------------------------------------
 --Utility Functions
@@ -122,7 +139,8 @@ mkGoodCHs startoff f =
             endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM (ChangeHunk off dels news :) $ mkGoodCHs (endDellOff + 1) f
+            liftM (ChangeHunk off dels (map asciiStrToString news) :)
+                  $ mkGoodCHs (endDellOff + 1) f
    where slice :: Int -> Int -> [a] -> [a]
          slice from to xs = take (to - from + 1) (drop from xs)
 -- Take a slice (a la python) from a list
