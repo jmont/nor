@@ -299,6 +299,11 @@ resolveIdenticals (konf@(Conf c hc confs noConfs (toR:toRs) lca)) =
     else konf
 resolveIdenticals succ = succ
 
+prop_madeTwoBranches :: BranchedCore -> Bool
+prop_madeTwoBranches (BC core b1 b2) =
+  let bs = getBranches core
+  in bs == [b1,b2] || bs == [b2,b1]
+
 prop_rebaseEq :: BranchedCore -> Bool
 prop_rebaseEq (BC core b1 b2) =
   case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
