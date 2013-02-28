@@ -8,9 +8,40 @@ import Test.QuickCheck.All
 import Control.Applicative
 import Control.Monad
 import Data.List
+import qualified Data.Char as Char
+import Data.Maybe
 import Nor
-import Cases
+import Main
 import qualified Data.Set as Set
+import qualified Control.Monad.State as S
+import qualified ObjectStore as O
+
+data BranchedCore = BC Core Commit Commit
+    deriving (Show)
+instance Arbitrary BranchedCore where
+  arbitrary = do
+    f <- arbitrary `suchThat` ((>7) . length . contents)
+    ps <- mkGoodPPatches f `suchThat` ((>2) . length)
+    split <- choose (1, length ps - 1)
+    let (br1p, br2p) = splitAt split (sort ps)
+    let br1s = sequenceParallelPatches br1p
+    let br2s = sequenceParallelPatches br2p
+    let core@(cs, os) = initCore
+    let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
+    let (hc, core') = S.runState (addCommit firstC) core
+    let (branch1, core'') = foldl applyPatchToCore (hc, core') br1s
+    let (branch2, core''') = foldl applyPatchToCore (hc, core'') br2s
+    return $ BC core''' branch1 branch2
+    where applyPatchToCore :: (Commit,Core) -> SequentialPatch -> (Commit,Core)
+          applyPatchToCore (hc, core@(_,os)) p =
+              let Just f = mapM (O.getObject os) (hashes hc)
+                  hashableF = addHashableAs (applyPatch p f)
+                  newCommitWithFiles = createCommit hashableF (Just hc)
+              in S.runState (addCommit newCommitWithFiles) core
+--  shrink (BC (comSet,os) b1 b2)
+--   | parent b1 == parent b2 = []
+--   | otherwise              =
+--      (BC (comSet,os) b1 (parent b2)) : shrink (BC (comSet,os) (parent b2) b1)
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
@@ -62,12 +93,28 @@ instance (Conflictable t, Arbitrary t) => Arbitrary (Conflict t) where
         x <- arbitrary
         Conflict <$> return x <*> arbitrary `suchThat` conflicts x
 
+
+goodChars :: String
+goodChars = ['a'..'z'] ++ ['A'..'Z']
+
+data AsciiChar = AsciiChar Char
+instance Arbitrary AsciiChar where
+    --arbitrary = arbitrary `suchThat` Char.isAscii >>= return . AsciiChar
+    arbitrary = elements goodChars >>= return . AsciiChar
+type AsciiStr = [AsciiChar]
+
+asciiChartoChar :: AsciiChar -> Char
+asciiChartoChar (AsciiChar ch) = ch
+
+asciiStrToString :: AsciiStr -> String
+asciiStrToString aStr = map asciiChartoChar aStr
+
 instance Arbitrary File where
     arbitrary = do
         NonNegative len <- arbitrary
         conts <- arbitrary
         NonEmpty fpath <- arbitrary
-        return $ File fpath (take len conts)
+        return $ File (asciiStrToString fpath) (take len (map asciiStrToString conts))
 
 ------------------------------------------------------------------------------
 --Utility Functions
@@ -82,6 +129,7 @@ mkGoodPPatches f =
             chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
 
+
 -- Generates several random change hunks given a file that don't conflict
 mkGoodCHs :: Int -> File -> Gen [ChangeHunk]
 mkGoodCHs startoff f =
@@ -91,7 +139,8 @@ mkGoodCHs startoff f =
             endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
             news <- arbitrary
-            liftM (ChangeHunk off dels news :) $ mkGoodCHs (endDellOff + 1) f
+            liftM (ChangeHunk off dels (map asciiStrToString news) :)
+                  $ mkGoodCHs (endDellOff + 1) f
    where slice :: Int -> Int -> [a] -> [a]
          slice from to xs = take (to - from + 1) (drop from xs)
 -- Take a slice (a la python) from a list
@@ -99,7 +148,7 @@ mkGoodCHs startoff f =
 -- forall x,y in a list of conflictable types, x does not conflict with y
 noConflicts :: Conflictable t => [t] -> Bool
 noConflicts chs =
-   foldr (\ch acc -> not (any (conflicts ch) chs) && acc) True chs
+   noDistinctPairs conflicts chs
 
 -- A conflicting set of change hunks (Conflict ch1s ch2s) obeys the following:
 -- no conflicts within ch1s or within ch2s
@@ -108,8 +157,8 @@ noConflicts chs =
 isConflictSet :: Conflictable t => Conflict [t] -> Bool
 isConflictSet (Conflict t1s t2s) =
    noConflicts t1s && noConflicts t2s &&
-   foldr (\t acc -> any (conflicts t) t1s && acc) True t2s &&
-   foldr (\t acc -> any (conflicts t) t2s && acc) True t1s
+   all (\t -> any (conflicts t) t1s) t2s &&
+   all (\t -> any (conflicts t) t2s) t1s
 
 isIndependentOfList :: Conflictable t => t -> [t] -> Bool
 isIndependentOfList t ts = not $ any (conflicts t) ts
@@ -161,7 +210,7 @@ prop_noConfs (PPF p1s p2s) =
 prop_eachHasConflict :: PPatchesFromFiles -> Property
 prop_eachHasConflict (PPF p1s p2s) =
    let (_,confLists) = mergeParallelPatches p1s p2s
-       b = foldr (\conf acc -> isConflictSet conf && acc) True confLists
+       b = all isConflictSet confLists
    in classify (null confLists) "Nothing conflicts" b
 
 -- Forall x in a conflict, forall y not in the conflict, x does not
@@ -226,5 +275,71 @@ prop_parallelPatchSequencing :: ParallelPatches -> Bool
 prop_parallelPatchSequencing ps =
     let onlyCHs = take 5 $ filter isCH ps
         patchesP = map sequenceParallelPatches (permutations onlyCHs)
-    in foldr (\p acc -> p == head patchesP && acc)
-        True (tail patchesP)
+    in all (== head patchesP) (tail patchesP)
+
+-- For a symmetric relation p, returns True if the relation is not present
+-- between any two elements of the list
+noDistinctPairs :: (a -> a -> Bool) -> [a] -> Bool
+noDistinctPairs p [] = True
+noDistinctPairs p (a:as) = not (any (p a) as) && noDistinctPairs p as
+
+chooseLeft :: [Conflict ParallelPatches] -> ResolvedConflicts
+chooseLeft = concatMap (\(Conflict p1s _) -> p1s)
+
+chooseRight :: [Conflict ParallelPatches] -> ResolvedConflicts
+chooseRight = concatMap (\(Conflict _ p2s) -> p2s)
+
+identicalConf :: Conflict ParallelPatches -> Bool
+identicalConf (Conflict p1 p2) = p1 == p2
+
+resolveIdenticals :: RebaseRes -> RebaseRes
+resolveIdenticals (konf@(Conf c hc confs noConfs (toR:toRs) lca)) =
+  if all identicalConf confs
+    then resolveIdenticals $ resolve c hc (chooseLeft confs ++ noConfs) toRs lca
+    else konf
+resolveIdenticals succ = succ
+
+prop_madeTwoBranches :: BranchedCore -> Bool
+prop_madeTwoBranches (BC core b1 b2) =
+  let bs = getBranches core
+  in bs == [b1,b2] || bs == [b2,b1]
+
+prop_rebaseEq :: BranchedCore -> Bool
+prop_rebaseEq (BC core b1 b2) =
+  case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
+   (Succ (_,os1) hc1, Succ (_,os2) hc2) ->
+      let reb1Files = fromJust $ mapM (O.getObject os1) (hashes hc1)
+          reb2Files = fromJust $ mapM (O.getObject os2) (hashes hc2)
+      in reb1Files == reb2Files
+   _ -> False
+
+prop_rebaseSucceeds :: BranchedCore -> Bool
+prop_rebaseSucceeds (BC core b1 b2) =
+  case resolveIdenticals (rebaseStart core b1 b2) of
+    Succ _ _ -> True
+    otherwise -> False
+
+prop_rebaseBothSucc :: BranchedCore -> Bool
+prop_rebaseBothSucc (bc@(BC core b1 b2)) =
+  prop_rebaseSucceeds bc && prop_rebaseSucceeds (BC core b2 b1)
+
+failureWorld :: (BranchedCore -> Bool) -> IO BranchedCore
+failureWorld bcProp = do
+  bcs <- sample' arbitrary
+  let Just (BC core b1 b2) = find (not . bcProp) bcs
+  return (BC core b1 b2)
+  --(core, Ephemera b1 [])
+
+testRebaseStart :: World -> RebaseRes
+testRebaseStart (core@(comSet,os),_) =
+  let [com1,com2] = getBranches core
+  in rebaseStart core com1 com2
+
+getBranches :: Core -> [Commit]
+getBranches (comSet,_) =
+  let parentList = catMaybes $ Set.toList $ Set.map parent comSet
+      hashes = Set.toList $ Set.map cid comSet
+      branches = hashes \\ parentList
+  in map (getCommit comSet) branches
+  where getCommit :: Set.Set Commit -> O.Hash -> Commit
+        getCommit comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet

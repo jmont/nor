@@ -38,6 +38,53 @@ instance Serialize Commit where
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
 
+type ResolvedConflicts = ParallelPatches
+data RebaseRes = Succ { core :: Core
+                      , newHead :: Commit }
+               | Conf { core :: Core
+                      , newHead :: Commit
+                      , cConfs :: [Conflict ParallelPatches]
+                      , cNoConfs :: ParallelPatches
+                      , ctoRebas :: [Commit]
+                      , cLca :: Commit }
+                      deriving (Show)
+
+rebaseStart :: Core -> Commit -> Commit -> RebaseRes
+rebaseStart core fromC toC =
+   let lca = getLca core fromC toC
+       toRs = reverse $ takeWhile (/= lca) (ancestorList core fromC)
+   in rebaseStep core toC toRs
+
+-- the following functions are pure and can have QC properties
+rebaseStep :: Core -> Commit -> [Commit] -> RebaseRes
+rebaseStep core hc [] = Succ core hc
+rebaseStep core@(_,os) hc (tor:tors) =
+    let lca = getLca core hc tor
+        (noConfs, confs) = mergeCommit os hc tor lca
+    in if null confs
+        then
+            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
+                (head',core') = S.runState (addCommit mergedC) core
+            in rebaseStep core' head' tors
+        else
+            Conf core hc confs noConfs (tor:tors) lca -- KEEP tor when Conf
+
+resolve :: Core -> Commit -> ResolvedConflicts ->
+           [Commit] -> Commit -> RebaseRes
+resolve core hc rconfs toRs lca =
+  let mergedC = parallelPatchesToCommit lca rconfs (Just (cid hc))
+      (head',core') = S.runState (addCommit mergedC) core
+  in rebaseStep core' head' toRs
+
+-- We expect toRs to not have been peeled off yet, creating an implicit commit
+-- for the head of the torebase list
+resolveWithFiles :: Core -> Commit -> [File] -> [Commit] -> RebaseRes
+resolveWithFiles (core@(_,os)) hc newFiles (toR:toRs) =
+    let hashableFs = addHashableAs newFiles
+        newCommitWithFiles = createCommit hashableFs (Just hc)
+        (newHead,newCore) = S.runState (addCommit newCommitWithFiles) core
+    in rebaseStep newCore newHead toRs
+
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)
 
@@ -50,13 +97,15 @@ addHashableA a = do
 
 createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
 createCommit s pc = do
-   let (_,commitOS) = S.runState s mkEmptyOS
-   let hashes = getHashes commitOS
-   newState <- S.get
-   let (_,os) = S.runState s newState
-   let Just pcid = liftM cid pc
-   S.put os
-   return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
+    -- Build object store of all files in the commit to get the hashes
+    let (_,commitOS) = S.runState s mkEmptyOS
+    let hashes = getHashes commitOS
+    -- Put the files into the objectsore given to the function
+    newState <- S.get
+    let (_,os) = S.runState s newState
+    let Just pcid = liftM cid pc
+    S.put os
+    return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
 
 addCommit :: WithObjects File Commit -> S.State Core Commit
 addCommit s = S.state (\(commitS, os) ->

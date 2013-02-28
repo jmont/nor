@@ -46,7 +46,6 @@ class Conflictable t where
 
 instance Conflictable ChangeHunk where
     conflicts ch1 ch2
-       | ch1 == ch2 = False -- Same hunk
        | offset ch1 == offset ch2 = True -- Operate on the same lines
        | offset ch1 < offset ch2 =
           offset ch1 + length (old ch1) > offset ch2 -- 1 overlaps with 2
@@ -55,8 +54,6 @@ instance Conflictable ChangeHunk where
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
-   conflicts (RemoveFile c1) (RemoveFile c2) = c1 /= c2
-   conflicts (CreateFile c1) (CreateFile c2) = c1 /= c2
    conflicts (Change ch1) (Change ch2) = conflicts ch1 ch2
    conflicts _ _ = True
 
@@ -157,6 +154,12 @@ sequenceParallelPatches = map SP . reverse . sort
 
 -- We know that conflicting parallelpatches must all act on same path
 conflictAsPatch :: Conflict ParallelPatches -> Patch
+conflictAsPatch (Conflict [] _) = error "empty list in conflict"
+conflictAsPatch (Conflict _ []) = error "empy list in conflict"
+conflictAsPatch (Conflict [p1] [p2]) =
+  if p1 == p2
+    then p1
+    else conflictAsPatch' (AP (appath p1) (Conflict [fromPath p1] [fromPath p2]))
 conflictAsPatch (Conflict p1s p2s) =
    let p = appath $ head p1s --Conflict list should never be empty
        pa1s = map fromPath p1s
@@ -197,20 +200,21 @@ getConflictOlds (Conflict ch1s ch2s) =
 mergeParallelPatches :: ParallelPatches -> ParallelPatches ->
                       (ParallelPatches,[Conflict ParallelPatches])
 mergeParallelPatches p1s p2s =
-   let confs1 = map (\p -> (1, p, filter (conflicts p) p2s)) p1s
-       confs2 = map (\p -> (2, p, filter (conflicts p) p1s)) p2s
+   let confs1 = map (\p -> (Left (), p, filter (conflicts p) p2s)) p1s
+       confs2 = map (\p -> (Right (), p, filter (conflicts p) p1s)) p2s
        (confGraph,adjList,_) = G.graphFromEdges (confs1 ++ confs2)
        conflictTrees = G.components confGraph
        (noConfs,confs) = foldr (\confTree (noConfs,confs) ->
                let elems = flatten confTree
-                   (fromP1,fromP2) = partition elems (== 1) adjList
-               in if length elems == 1
-                  then
-                     let (_,ch,_) = adjList (head elems)
-                     in (ch:noConfs,confs)
-                  else (noConfs, Conflict fromP1 fromP2 : confs))
+                   (fromPP1,fromPP2) = partition elems (== Left ()) adjList
+               in case elems of
+                    [] -> error "Empty connected component"
+                    [unconnectedV] ->
+                      let (_,ch,_) = adjList unconnectedV
+                      in (ch:noConfs,confs)
+                    connected -> (noConfs, Conflict fromPP1 fromPP2 : confs))
              ([],[]) conflictTrees
-   in (Set.toList (Set.fromList noConfs), confs)
+   in (noConfs, confs)
          --Detects conflicts within two lists of changehunks
    where partition :: [Vertex] -> (node -> Bool) ->
                      (Vertex -> (node,key,[key])) -> ([key],[key])
