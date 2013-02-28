@@ -323,15 +323,23 @@ prop_rebaseBothSucc :: BranchedCore -> Bool
 prop_rebaseBothSucc (bc@(BC core b1 b2)) =
   prop_rebaseSucceeds bc && prop_rebaseSucceeds (BC core b2 b1)
 
-failureWorld :: IO World
-failureWorld = do
+failureWorld :: (BranchedCore -> Bool) -> IO BranchedCore
+failureWorld bcProp = do
   bcs <- sample' arbitrary
-  let mBcs = find (not . succeeds) bcs
-  case mBcs of
-    Just (BC core b1 b2) -> return (core, Ephemera b1 [])
-    Nothing -> error "whups"
-  where succeeds :: BranchedCore -> Bool
-        succeeds (BC core b1 b2) =
-         case rebaseStart core b1 b2 of
-          Succ _ _ -> True
-          otherwise -> False
+  let Just (BC core b1 b2) = find (not . bcProp) bcs
+  return (BC core b1 b2)
+  --(core, Ephemera b1 [])
+
+testRebaseStart :: World -> RebaseRes
+testRebaseStart (core@(comSet,os),_) =
+  let [com1,com2] = getBranches core
+  in rebaseStart core com1 com2
+
+getBranches :: Core -> [Commit]
+getBranches (comSet,_) =
+  let parentList = catMaybes $ Set.toList $ Set.map parent comSet
+      hashes = Set.toList $ Set.map cid comSet
+      branches = hashes \\ parentList
+  in map (getCommit comSet) branches
+  where getCommit :: Set.Set Commit -> O.Hash -> Commit
+        getCommit comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
