@@ -299,20 +299,24 @@ resolveIdenticals (konf@(Conf c hc confs noConfs (toR:toRs) lca)) =
     else konf
 resolveIdenticals succ = succ
 
-prop_rebaseEq :: BranchedCore -> Gen Bool
+prop_rebaseEq :: BranchedCore -> Bool
 prop_rebaseEq (BC core b1 b2) =
   case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
    (Succ (_,os1) hc1, Succ (_,os2) hc2) ->
       let reb1Files = fromJust $ mapM (O.getObject os1) (hashes hc1)
           reb2Files = fromJust $ mapM (O.getObject os2) (hashes hc2)
-      in return $ reb1Files == reb2Files
-   _ -> return False
+      in reb1Files == reb2Files
+   _ -> False
 
-prop_rebaseSucc :: BranchedCore -> Gen Bool
-prop_rebaseSucc (BC core b1 b2) =
-  case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
-    (Succ _ _, Succ _ _) -> return True
-    _ -> return False
+prop_rebaseSucceeds :: BranchedCore -> Bool
+prop_rebaseSucceeds (BC core b1 b2) =
+  case resolveIdenticals (rebaseStart core b1 b2) of
+    Succ _ _ -> True
+    otherwise -> False
+
+prop_rebaseBothSucc :: BranchedCore -> Bool
+prop_rebaseBothSucc (bc@(BC core b1 b2)) =
+  prop_rebaseSucceeds bc && prop_rebaseSucceeds (BC core b2 b1)
 
 failureWorld :: IO World
 failureWorld = do
