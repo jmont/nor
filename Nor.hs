@@ -47,6 +47,7 @@ data RebaseRes = Succ { core :: Core
                       , cNoConfs :: ParallelPatches
                       , ctoRebas :: [Commit]
                       , cLca :: Commit }
+                      deriving (Show)
 
 rebaseStart :: Core -> Commit -> Commit -> RebaseRes
 rebaseStart core fromC toC =
