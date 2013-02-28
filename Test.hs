@@ -283,13 +283,21 @@ noDistinctPairs :: (a -> a -> Bool) -> [a] -> Bool
 noDistinctPairs p [] = True
 noDistinctPairs p (a:as) = not (any (p a) as) && noDistinctPairs p as
 
-chooseLeft :: RebaseRes -> ResolvedConflicts
-chooseLeft (Conf _ _ confs patches _ _) =
-  patches ++ concatMap (\(Conflict p1s _) -> p1s) confs
+chooseLeft :: [Conflict ParallelPatches] -> ResolvedConflicts
+chooseLeft = concatMap (\(Conflict p1s _) -> p1s)
 
-chooseRight :: RebaseRes -> ResolvedConflicts
-chooseRight (Conf _ _ confs patches _ _) =
-  patches ++ concatMap (\(Conflict _ p2s) -> p2s) confs
+chooseRight :: [Conflict ParallelPatches] -> ResolvedConflicts
+chooseRight = concatMap (\(Conflict _ p2s) -> p2s)
+
+identicalConf :: Conflict ParallelPatches -> Bool
+identicalConf (Conflict p1 p2) = p1 == p2
+
+resolveIdenticals :: RebaseRes -> RebaseRes
+resolveIdenticals (konf@(Conf c hc confs noConfs (toR:toRs) lca)) =
+  if all identicalConf confs
+    then resolveIdenticals $ resolve c hc (chooseLeft confs ++ noConfs) toRs lca
+    else konf
+resolveIdenticals succ = succ
 
 prop_rebaseEq :: BranchedCore -> Gen Bool
 prop_rebaseEq (BC core b1 b2) =
