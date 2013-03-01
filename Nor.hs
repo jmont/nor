@@ -49,8 +49,8 @@ class (CoreReader a) => CoreWriter a where
 --                    let (a, c') = writeState m z
 --                    in writeState (k a) c'
 
-instance CoreReader CR where
-    readCore = 
+--instance CoreReader CR where
+--    readCore = 
 
 
 --instance CoreReader R where
@@ -118,11 +118,16 @@ resolve core hc rconfs toRs lca =
 -- We expect toRs to not have been peeled off yet, creating an implicit commit
 -- for the head of the torebase list
 resolveWithFiles :: Core -> Commit -> [File] -> [Commit] -> RebaseRes
-resolveWithFiles (core@(_,os)) hc newFiles (toR:toRs) =
+resolveWithFiles (core@(_,_os)) hc newFiles (_toR:toRs) =
     let hashableFs = addHashableAs newFiles
         newCommitWithFiles = createCommit hashableFs (Just hc)
         (newHead,newCore) = S.runState (addCommit newCommitWithFiles) core
     in rebaseStep newCore newHead toRs
+resolveWithFiles _ _ _ [] = unimp "resolv with empty commit list"
+
+
+unimp :: String -> a 
+unimp s = error ("Not implemented: " ++ s)
 
 addHashableAs :: Serialize a => [a] -> WithObjects a Hash
 addHashableAs as = foldr1 (>>) (map addHashableA as)

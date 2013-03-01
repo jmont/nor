@@ -3,7 +3,6 @@ import Data.Algorithm.Diff
 import Data.List
 import Data.Graph as G
 import Data.Tree as T
-import qualified Data.Set as Set
 
 data Edit t = C -- Copy current input line to output
             | I t -- Insert argument line into output
@@ -51,6 +50,7 @@ instance Conflictable ChangeHunk where
           offset ch1 + length (old ch1) > offset ch2 -- 1 overlaps with 2
        | offset ch1 > offset ch2 =
           offset ch2 + length (old ch2) > offset ch1 -- 2 overlaps with 1
+       | otherwise = error "change hunks not ==, <, or >"
 
 -- When two patchactions applied to the same path conflict
 instance Conflictable PatchAction where
@@ -212,7 +212,7 @@ mergeParallelPatches p1s p2s =
                     [unconnectedV] ->
                       let (_,ch,_) = adjList unconnectedV
                       in (ch:noConfs,confs)
-                    connected -> (noConfs, Conflict fromPP1 fromPP2 : confs))
+                    _connected -> (noConfs, Conflict fromPP1 fromPP2 : confs))
              ([],[]) conflictTrees
    in (noConfs, confs)
          --Detects conflicts within two lists of changehunks

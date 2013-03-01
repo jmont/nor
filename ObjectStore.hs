@@ -4,7 +4,6 @@ import Crypto.Hash.SHA1 (hash)
 import Data.Serialize
 import Numeric (showHex, readHex)
 import qualified Data.Map as Map
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as Strict
 import qualified Data.Foldable as F
 -------------------------------------------------
@@ -12,10 +11,13 @@ import qualified Data.Foldable as F
 makeSizeTwo :: String -> String
 makeSizeTwo i@(_:[]) = '0':i
 makeSizeTwo i@(_:_:[]) = i
+makeSizeTwo _ =
+  error "tried to make a two-digit thing out of something with 0 or 3+ digits"
 
 splitInTwos :: [a] -> [[a]]
 splitInTwos (a:b:rest) = [a,b] : splitInTwos rest
 splitInTwos [] = []
+splitInTwos [_] = error "splitInTwos applied to list containing odd # of elements"
 
 hexToHash :: String -> Hash
 hexToHash hx = Hash $ Strict.pack . map fst

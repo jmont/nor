@@ -126,8 +126,8 @@ restoreFiles fs = do
 
 -- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
-checkout :: World -> [String] -> IO World
-checkout ((comSet, os), eph) [hh] =
+checkout :: World -> String -> IO World
+checkout ((comSet, os), eph) hh =
     let h = O.hexToHash hh
         com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
         Just dFiles = mapM (O.getObject os) (hashes (headC eph))
@@ -138,8 +138,8 @@ checkout ((comSet, os), eph) [hh] =
           return ((comSet, os), Ephemera com (toRebase eph))
 
 -- Print the files from the commit corresponding to the specified hash.
-files :: World -> [String] -> IO World
-files w@((comSet, os), _) [hh] = do
+files :: World -> String -> IO World
+files w@((comSet, os), _) hh = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
     let Just files = O.getObjects os (hashes com)
@@ -149,8 +149,8 @@ files w@((comSet, os), _) [hh] = do
 
 -- On the commit corresponding to the specified hash, replay commits
 -- between the least common ancestor of the head and the commit.
-rebase :: World -> [String] -> IO World
-rebase (core@(_,os), eph) ["--continue"] = do
+rebase :: World -> String -> IO World
+rebase (core@(_,os), eph) "--continue" = do
    let toPaths = getPaths (headC eph)
    let fromPaths = getPaths . head . toRebase $ eph
    newFiles <- mapM getFile $ List.nub $ fromPaths ++ toPaths
@@ -159,7 +159,7 @@ rebase (core@(_,os), eph) ["--continue"] = do
          getPaths c =
             let Just files = O.getObjects os (hashes c)
             in map path files
-rebase (core@(comSet,_), eph) [hh] =
+rebase (core@(comSet,_), eph) hh =
    let toHash = O.hexToHash hh
        toCom = commitByHash comSet toHash
    in rebaseStop $ rebaseStart core (headC eph) toCom
@@ -167,14 +167,14 @@ rebase (core@(comSet,_), eph) [hh] =
 rebaseStop :: RebaseRes -> IO World
 rebaseStop (Succ core head) =
     let w' = (core, Ephemera head [])
-    in checkout w' [((show . cid) head)]
+    in checkout w' ((show . cid) head)
 rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
     let conflictPatches = map conflictAsPatch confs
         Just files = mapM (O.getObject os) (hashes lca)
         combinedPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
         w = (core, Ephemera head toRs)
     in do
-      checkout w [show (cid lca)] -- replace fs with lca's files
+      _ <- checkout w (show (cid lca)) -- replace fs with lca's files
       restoreFiles $ applyPatches combinedPatches files
       putStrLn "Conflicts! Fix them and run nor rebase --continue"
       return w
@@ -194,9 +194,12 @@ dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
 dispatch' w "commit" ns = commit w ns
 dispatch' w "tree" _ = printCommits w >> return w
-dispatch' w "checkout" h = checkout w h
-dispatch' w "files" h = files w h
-dispatch' w "rebase" args = rebase w args
+dispatch' w "checkout" [h] = checkout w h
+dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
+dispatch' w "files" [h] = files w h
+dispatch' _ "files" _ = error "files expects exactly one hash"
+dispatch' w "rebase" [arg] = rebase w arg
+dispatch' _ "rebase" _ = error "Usage: nor rebase <--continue | hash>"
 -- Default
 dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 
