@@ -40,22 +40,12 @@ instance Monad CX where
   return a = CX $ \c -> (a, c)
   (CX m) >>= k = CX $ \c -> let (b, c') = m c in xc (k b) c'
 
---data CR a = CR { readState :: Core -> a }
---instance Monad CR where
---    return a = CR $ \_ -> a
---    m >>= k = CR $ \z -> 
---                    let a = readState m z
---                    in readState (k a) z
---
---data CW a = CW { writeState :: Core -> (a, Core) }
---instance Monad CW where
---    return a = CW $ \_ -> (a, initCore)
---    m >>= k = CW $ \z -> 
---                    let (a, c') = writeState m z
---                    in writeState (k a) c'
+instance CoreReader CR where
+  readCore = CR $ id
+  
+instance CoreReader CX where
+  readCore = CX $ \c -> (c, c)
 
---instance CoreReader CR where
---    readCore = 
 
 
 --instance CoreReader R where
