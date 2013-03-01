@@ -8,9 +8,11 @@ import qualified Data.Set as Set
 import qualified Data.ByteString as S
 import qualified ObjectStore as O
 import qualified Data.List as List
-import Nor
 import qualified Control.Monad.State as State
 import Control.Applicative
+
+import Core
+import Nor
 import Patch
 
 -- The changing part of the repository, allows the repository to switch states.
