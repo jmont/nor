@@ -46,11 +46,14 @@ instance CoreReader CR where
 instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
-
-
---instance CoreReader R where
---    readCore = 
-
+instance CoreExtender CX where
+  addFile file = CX $ \core -> (hash_of_new_file file core, new_core file core)
+   where hash_of_new_file = unimp
+         new_core = unimp
+        
+  addCommit' c = CX $ \core -> ((), core_with_commit core c)
+   where core_with_commit = unimp
+        
 
 
 
