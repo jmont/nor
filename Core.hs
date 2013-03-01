@@ -19,12 +19,26 @@ class CoreReader m => CoreExtender m where
     addFile   :: File   -> m Hash
     addCommit' :: Commit -> m ()
 
---data CR s a = CR { runState :: s -> (a, s) }
---instance Monad (CR s) where
---    return a = CR $ \s -> (a, s)
---    m >>= k = CR $ \z -> 
---                    let (a, s') = runState m z
---                    in runState (k a) s'
+
+_createRepo :: IO () -- writes an initial core
+_createRepo = unimp
+
+_updateRepo :: CX a -> IO a               
+_updateRepo = unimp
+
+_loadRepo :: CR a -> IO a    
+_loadRepo = unimp
+
+data CR a = CR { rc :: Core -> a }
+data CX a = CX { xc :: Core -> (a, Core) }
+
+instance Monad CR where
+  return a = CR $ const a
+  (CR r) >>= k = CR $ \core -> rc (k (r core)) core
+
+instance Monad CX where
+  return a = CX $ \c -> (a, c)
+  (CX m) >>= k = CX $ \c -> let (b, c') = m c in xc (k b) c'
 
 --data CR a = CR { readState :: Core -> a }
 --instance Monad CR where
@@ -73,3 +87,7 @@ instance Serialize Commit where
 
 -- list of all commits, hash->file, head commit, commitCount
 type Core = (Set.Set Commit, ObjectStore File)
+
+
+unimp :: a
+unimp = error "not impelmented"
