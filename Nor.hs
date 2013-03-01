@@ -20,6 +20,44 @@ instance Serialize File where
     put (File p c) = put p >> put c
     get = File <$> get <*> get
 
+----------
+
+class CoreReader a where
+    readCore :: Core -> a
+
+class (CoreReader a) => CoreWriter a where
+    appendCore :: Core -> a -> Core
+
+--data CR s a = CR { runState :: s -> (a, s) }
+--instance Monad (CR s) where
+--    return a = CR $ \s -> (a, s)
+--    m >>= k = CR $ \z -> 
+--                    let (a, s') = runState m z
+--                    in runState (k a) s'
+
+--data CR a = CR { readState :: Core -> a }
+--instance Monad CR where
+--    return a = CR $ \_ -> a
+--    m >>= k = CR $ \z -> 
+--                    let a = readState m z
+--                    in readState (k a) z
+--
+--data CW a = CW { writeState :: Core -> (a, Core) }
+--instance Monad CW where
+--    return a = CW $ \_ -> (a, initCore)
+--    m >>= k = CW $ \z -> 
+--                    let (a, c') = writeState m z
+--                    in writeState (k a) c'
+
+instance CoreReader CR where
+    readCore = 
+
+
+--instance CoreReader R where
+--    readCore = 
+
+----------
+
 --Mapping between Hashes -> a
 type WithObjects a b = S.State (ObjectStore a) b
 
@@ -27,6 +65,7 @@ data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
                      , hashes :: [Hash] -- Hashes of all files at given time
                      , cid :: Hash
                      } deriving (Show)
+
 instance Ord Commit where
    compare c1 c2 = compare (cid c1) (cid c2)
 instance Eq Commit where
