@@ -56,7 +56,6 @@ resolveWithFiles (core@(_,_os)) hc newFiles (_toR:toRs) =
     in rebaseStep newCore newHead toRs
 resolveWithFiles _ _ _ [] = unimp "resolve with empty commit list"
 
-
 unimp :: String -> a 
 unimp s = error ("Not implemented: " ++ s)
 
@@ -73,10 +72,6 @@ commitById (commitSet, _) id =
     foldl (\mc c@(Commit _ _ cid) ->
                 if id == cid then Just c
                              else mc) Nothing (Set.elems commitSet)
-
-medCheckout :: Core -> Commit Hash -> Maybe [File]
-medCheckout (_,os) (Commit _ hashes _) =
-    mapM (getObject os) hashes
 
 getLca :: Core -> Commit Hash -> Commit Hash -> Commit Hash
 getLca core ca cb =
