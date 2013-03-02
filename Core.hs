@@ -3,26 +3,16 @@ module Core
   , Commit(..)
   , Core
   , CoreReader(..), CoreExtender(..)
+  , initCore
   )
 where
 
 import Control.Applicative
 import Data.Serialize
 import qualified Data.Set as Set
+import Crypto.Hash.SHA1 (hash)
 
 import ObjectStore
-
-_createRepo :: IO () -- writes an initial core
-_createRepo = unimp
-
-_updateRepo :: CX a -> IO a
-_updateRepo = unimp
-
-_loadRepo :: CR a -> IO a
-_loadRepo = unimp
-
-unimp :: a
-unimp = error "not impelmented"
 
 data CR a = CR { rc :: Core -> a }
 data CX a = CX { xc :: Core -> (a, Core) }
@@ -78,3 +68,8 @@ instance Eq Commit where
 instance Serialize Commit where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
+
+-- An empty Core
+initCore :: Core
+initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
+           in (Set.singleton initC, mkEmptyOS)

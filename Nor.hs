@@ -8,17 +8,9 @@ import qualified Data.ByteString as Strict
 import Data.Serialize
 import qualified Control.Monad.State as S
 
-
 import Core
 import ObjectStore
 import Patch
----------------------------------
-
-
-----------
-
-
-----------
 
 --Mapping between Hashes -> a
 type WithObjects a b = S.State (ObjectStore a) b
@@ -105,11 +97,6 @@ addCommit s = S.state (\(commitS, os) ->
 
 mkCommitHash :: [Hash] -> Hash
 mkCommitHash = Hash . hash . Strict.concat . map getHash
-
--- An empty world
-initCore :: Core
-initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
-           in (Set.singleton initC, mkEmptyOS)
 
 commitById :: Core -> Hash -> Maybe Commit
 commitById (commitSet, _) id =

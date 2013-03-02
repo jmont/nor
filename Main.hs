@@ -9,31 +9,11 @@ import qualified Data.ByteString as S
 import qualified ObjectStore as O
 import qualified Data.List as List
 import qualified Control.Monad.State as State
-import Control.Applicative
 
 import Core
 import Nor
 import Patch
-
--- The changing part of the repository, allows the repository to switch states.
-data Ephemera = Ephemera { headC :: Commit -- Current checked-out commit
-                         , toRebase :: [Commit]
-                            -- Mid-rebase, the commits that still need to be
-                            -- handled.
-                         } deriving Show
-
-instance Serialize Ephemera where
-   put (Ephemera h toR) = put h >> put toR
-   get = Ephemera <$> get <*> get
-
--- All the information in the repository. An append-only Core, and a changing
--- Ephemera.
-type World = (Core, Ephemera)
-
--- An "empty" World with a single empty Commit as the head.
-initWorld :: World
-initWorld = let core@(commitSet,_) = initCore
-            in (core,Ephemera (head $ Set.toList commitSet) [])
+import World
 
 -- Location in which to save program data.
 progDirPath :: String
