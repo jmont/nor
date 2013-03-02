@@ -1,120 +1,90 @@
 module Nor where
-import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
 import Crypto.Hash.SHA1 (hash)
-import qualified Data.ByteString as Strict
-import Data.Serialize
+import qualified Data.ByteString as BS
 import qualified Control.Monad.State as S
 
 import Core
 import ObjectStore
 import Patch
 
---Mapping between Hashes -> a
-type WithObjects a b = S.State (ObjectStore a) b
-
-
 type ResolvedConflicts = ParallelPatches
 data RebaseRes = Succ { core :: Core
-                      , newHead :: Commit }
+                      , newHead :: Commit Hash }
                | Conf { core :: Core
-                      , newHead :: Commit
+                      , newHead :: Commit Hash
                       , cConfs :: [Conflict ParallelPatches]
                       , cNoConfs :: ParallelPatches
-                      , ctoRebas :: [Commit]
-                      , cLca :: Commit }
+                      , ctoRebas :: [Commit Hash]
+                      , cLca :: Commit Hash}
                       deriving (Show)
 
-rebaseStart :: Core -> Commit -> Commit -> RebaseRes
+rebaseStart :: Core -> Commit Hash -> Commit Hash -> RebaseRes
 rebaseStart core fromC toC =
    let lca = getLca core fromC toC
        toRs = reverse $ takeWhile (/= lca) (ancestorList core fromC)
    in rebaseStep core toC toRs
 
 -- the following functions are pure and can have QC properties
-rebaseStep :: Core -> Commit -> [Commit] -> RebaseRes
+rebaseStep :: Core -> Commit Hash -> [Commit Hash] -> RebaseRes
 rebaseStep core hc [] = Succ core hc
 rebaseStep core@(_,os) hc (tor:tors) =
     let lca = getLca core hc tor
         (noConfs, confs) = mergeCommit os hc tor lca
     in if null confs
         then
-            let mergedC = parallelPatchesToCommit lca noConfs (Just (cid hc))
-                (head',core') = S.runState (addCommit mergedC) core
+            let stateWithCommit = parallelPatchesToCommit lca noConfs (cid hc)
+                (head',core') = S.runState stateWithCommit core
             in rebaseStep core' head' tors
         else
             Conf core hc confs noConfs (tor:tors) lca -- KEEP tor when Conf
 
-resolve :: Core -> Commit -> ResolvedConflicts ->
-           [Commit] -> Commit -> RebaseRes
+resolve :: Core -> Commit Hash -> ResolvedConflicts ->
+           [Commit Hash] -> Commit Hash -> RebaseRes
 resolve core hc rconfs toRs lca =
-  let mergedC = parallelPatchesToCommit lca rconfs (Just (cid hc))
-      (head',core') = S.runState (addCommit mergedC) core
+  let stateWithCommit = parallelPatchesToCommit lca rconfs (cid hc)
+      (head',core') = S.runState stateWithCommit core
   in rebaseStep core' head' toRs
 
 -- We expect toRs to not have been peeled off yet, creating an implicit commit
 -- for the head of the torebase list
-resolveWithFiles :: Core -> Commit -> [File] -> [Commit] -> RebaseRes
+resolveWithFiles :: Core -> Commit Hash -> [File] -> [Commit Hash] -> RebaseRes
 resolveWithFiles (core@(_,_os)) hc newFiles (_toR:toRs) =
-    let hashableFs = addHashableAs newFiles
-        newCommitWithFiles = createCommit hashableFs (Just hc)
-        (newHead,newCore) = S.runState (addCommit newCommitWithFiles) core
+    let (newHead,newCore) = S.runState (addCommit newFiles (cid hc)) core
     in rebaseStep newCore newHead toRs
-resolveWithFiles _ _ _ [] = unimp "resolv with empty commit list"
+resolveWithFiles _ _ _ [] = unimp "resolve with empty commit list"
 
 
 unimp :: String -> a 
 unimp s = error ("Not implemented: " ++ s)
 
-addHashableAs :: Serialize a => [a] -> WithObjects a Hash
-addHashableAs as = foldr1 (>>) (map addHashableA as)
+addCommit :: [File] -> Hash -> S.State Core (Commit Hash)
+addCommit fs pcid = S.state (\(cs, os) ->
+    let (hs, os') = addObjects os fs
+        c' = Commit (Just pcid) hs $ mkCommitHash (pcid:hs)
+    in (c', (Set.insert c' cs, os')))
+    where mkCommitHash :: [Hash] -> Hash
+          mkCommitHash = Hash . hash . BS.concat . map getHash
 
-addHashableA :: Serialize a => a -> WithObjects a Hash
-addHashableA a = do
-    os <- S.get
-    let (hash,newState) = addObject os a
-    S.put newState
-    return hash
-
-createCommit :: WithObjects File Hash -> Maybe Commit -> WithObjects File Commit
-createCommit s pc = do
-    -- Build object store of all files in the commit to get the hashes
-    let (_,commitOS) = S.runState s mkEmptyOS
-    let hashes = getHashes commitOS
-    -- Put the files into the objectsore given to the function
-    newState <- S.get
-    let (_,os) = S.runState s newState
-    let Just pcid = liftM cid pc
-    S.put os
-    return $ Commit (Just pcid) hashes $ mkCommitHash (pcid:hashes)
-
-addCommit :: WithObjects File Commit -> S.State Core Commit
-addCommit s = S.state (\(commitS, os) ->
-      let (newCommit,newOS) = S.runState s os
-      in (newCommit, (Set.insert newCommit commitS, newOS)))
-
-mkCommitHash :: [Hash] -> Hash
-mkCommitHash = Hash . hash . Strict.concat . map getHash
-
-commitById :: Core -> Hash -> Maybe Commit
+commitById :: Core -> Hash -> Maybe (Commit Hash)
 commitById (commitSet, _) id =
     foldl (\mc c@(Commit _ _ cid) ->
                 if id == cid then Just c
                              else mc) Nothing (Set.elems commitSet)
 
-medCheckout :: Core -> Commit -> Maybe [File]
+medCheckout :: Core -> Commit Hash -> Maybe [File]
 medCheckout (_,os) (Commit _ hashes _) =
     mapM (getObject os) hashes
 
-getLca :: Core -> Commit -> Commit -> Commit
+getLca :: Core -> Commit Hash -> Commit Hash -> Commit Hash
 getLca core ca cb =
    let ancSeta = Set.fromList (ancestorList core ca)
    in foldr (\a z -> if Set.member a ancSeta then a else z)
       (error "No LCA") (ancestorList core cb)
 
-ancestorList :: Core -> Commit -> [Commit]
+ancestorList :: Core -> Commit Hash -> [Commit Hash]
 ancestorList _ c1@(Commit Nothing _ _) = [c1]
 ancestorList core c1@(Commit (Just pid) _ _) =
     let Just p = commitById core pid
@@ -141,10 +111,10 @@ patchFromFiles fas fbs =
           alterFun _ _ = error "Can't Happen"
 
 --Return a patch from commit a to commit b
-patchFromCommits :: ObjectStore File -> Commit -> Commit -> ParallelPatches
+patchFromCommits :: ObjectStore File -> Commit Hash -> Commit Hash -> ParallelPatches
 patchFromCommits os ca cb =
-      let hashesA = Set.fromList (hashes ca)
-          hashesB = Set.fromList (hashes cb)
+      let hashesA = Set.fromList (cContents ca)
+          hashesB = Set.fromList (cContents cb)
           onlyA = hashesA Set.\\ hashesB
           onlyB = hashesB Set.\\ hashesA
           filesOnlyA = getFilesForSet os onlyA
@@ -180,7 +150,7 @@ applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
 applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
-mergeCommit :: ObjectStore File -> Commit -> Commit -> Commit ->
+mergeCommit :: ObjectStore File -> Commit Hash -> Commit Hash -> Commit Hash ->
                (ParallelPatches,[Conflict ParallelPatches])
 mergeCommit os ca cb lca =
       let patchTo = patchFromCommits os
@@ -188,12 +158,13 @@ mergeCommit os ca cb lca =
           patchB = lca `patchTo` cb
       in patchA >||< patchB
 
-parallelPatchesToCommit :: Commit -> ParallelPatches -> Maybe Hash ->
-                           WithObjects File Commit
-parallelPatchesToCommit lca patches mpcid = S.state (\os ->
-      let lcaFiles = fromJust $ mapM (getObject os) (hashes lca)
-          sPatches = sequenceParallelPatches patches
-          newFiles = applyPatches sPatches lcaFiles
-          (hs,newOS) = addObjects os newFiles
-          commitHash = Hash $ hash $ Strict.concat (map getHash hs)
-      in (Commit mpcid hs commitHash,newOS))
+parallelPatchesToCommit :: Commit Hash -> ParallelPatches -> Hash ->
+                           S.State Core (Commit Hash)
+parallelPatchesToCommit lca patches pcid = do
+    c@(_, os) <- S.get
+    let lcaFiles = fromJust $ mapM (getObject os) (cContents lca)
+    let sPatches = sequenceParallelPatches patches
+    let newFiles = applyPatches sPatches lcaFiles
+    let (a, c') = S.runState (addCommit newFiles pcid) c
+    S.put c'
+    return a

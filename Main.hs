@@ -14,6 +14,7 @@ import Core
 import Nor
 import Patch
 import World
+import ObjectStore
 
 -- Location in which to save program data.
 progDirPath :: String
@@ -62,14 +63,12 @@ getFile p = do
 -- The new commit becomes the current head.
 commit :: World -> [String] -> IO World
 commit w@((_, os), eph) ("-a":names) = do
-    let Just files = mapM (O.getObject os) (hashes (headC eph))
+    let Just files = mapM (O.getObject os) (cContents (headC eph))
     let paths = map path files ++ names
     commit w paths
 commit (core, eph) names = do
     fs <- mapM getFile names
-    let fhs = addHashableAs fs
-    let newCommitWithFiles = createCommit fhs (Just (headC eph))
-    let (newHead,newCore) = State.runState (addCommit newCommitWithFiles) core
+    let (newHead,newCore) = State.runState (addCommit fs (cid (headC eph))) core
     let w' = (newCore, Ephemera newHead (toRebase eph))
     print $ cid newHead
     return w'
@@ -112,8 +111,8 @@ checkout :: World -> String -> IO World
 checkout ((comSet, os), eph) hh =
     let h = O.hexToHash hh
         com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
-        Just dFiles = mapM (O.getObject os) (hashes (headC eph))
-        Just rFiles = mapM (O.getObject os) (hashes com)
+        Just dFiles = mapM (O.getObject os) (cContents (headC eph))
+        Just rFiles = mapM (O.getObject os) (cContents com)
     in do deleteFiles dFiles
           restoreFiles rFiles
           putStrLn $ "Updated repo to " ++ hh
@@ -124,7 +123,7 @@ files :: World -> String -> IO World
 files w@((comSet, os), _) hh = do
     let h = O.hexToHash hh
     let com = commitByHash comSet h
-    let Just files = O.getObjects os (hashes com)
+    let Just files = O.getObjects os (cContents com)
     putStrLn $ "Files for " ++ hh
     mapM_ print files
     return w
@@ -137,9 +136,9 @@ rebase (core@(_,os), eph) "--continue" = do
    let fromPaths = getPaths . head . toRebase $ eph
    newFiles <- mapM getFile $ List.nub $ fromPaths ++ toPaths
    rebaseStop $ resolveWithFiles core (headC eph) newFiles (toRebase eph)
-   where getPaths :: Commit -> [Path]
+   where getPaths :: Commit Hash -> [Path]
          getPaths c =
-            let Just files = O.getObjects os (hashes c)
+            let Just files = O.getObjects os (cContents c)
             in map path files
 rebase (core@(comSet,_), eph) hh =
    let toHash = O.hexToHash hh
@@ -152,7 +151,7 @@ rebaseStop (Succ core head) =
     in checkout w' ((show . cid) head)
 rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
     let conflictPatches = map conflictAsPatch confs
-        Just files = mapM (O.getObject os) (hashes lca)
+        Just files = mapM (O.getObject os) (cContents lca)
         combinedPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
         w = (core, Ephemera head toRs)
     in do
@@ -162,7 +161,7 @@ rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
       return w
 
 -- Lookup a commit by its hash
-commitByHash :: Set.Set Commit -> O.Hash -> Commit
+commitByHash :: Set.Set (Commit Hash) -> O.Hash -> Commit Hash
 commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
 --Runs the given command with args to alter the world.

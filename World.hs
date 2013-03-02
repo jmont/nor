@@ -4,14 +4,15 @@ import Control.Applicative
 import Data.Serialize
 import qualified Data.Set as Set
 
+import ObjectStore
 import Core
 
 class CoreReader m => WorldReader m where
     readWorld :: m World
 
 class (CoreExtender m, WorldReader m) => WorldWriter m where
-    updateHead :: Commit -> m ()
-    updateToR :: [Commit] -> m ()
+    updateHead :: Commit Hash -> m ()
+    updateToR :: [Commit Hash] -> m ()
 
 data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
@@ -41,7 +42,6 @@ instance CoreReader WW where
     readCore = WW $ \w -> (fst w, w)
 
 instance CoreExtender WW where
-    addFile = unimp
     addCommit' = unimp
 
 instance WorldReader WW where
@@ -56,8 +56,8 @@ instance WorldWriter WW where
 type World = (Core, Ephemera)
 
 -- The changing part of the repository, allows the repository to switch states.
-data Ephemera = Ephemera { headC :: Commit -- Current checked-out commit
-                         , toRebase :: [Commit]
+data Ephemera = Ephemera { headC :: Commit Hash-- Current checked-out commit
+                         , toRebase :: [Commit Hash]
                             -- Mid-rebase, the commits that still need to be
                             -- handled.
                          } deriving Show

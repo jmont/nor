@@ -1,6 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Test where
-import Patch
 import Test.QuickCheck
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
@@ -10,13 +9,17 @@ import Control.Monad
 import Data.List
 import qualified Data.Char as Char
 import Data.Maybe
-import Nor
-import Main
 import qualified Data.Set as Set
 import qualified Control.Monad.State as S
-import qualified ObjectStore as O
 
-data BranchedCore = BC Core Commit Commit
+import Nor
+import Main
+import qualified ObjectStore as O
+import Core
+import World
+import Patch
+
+data BranchedCore = BC Core (Commit O.Hash) (Commit O.Hash)
     deriving (Show)
 instance Arbitrary BranchedCore where
   arbitrary = do
@@ -27,17 +30,15 @@ instance Arbitrary BranchedCore where
     let br1s = sequenceParallelPatches br1p
     let br2s = sequenceParallelPatches br2p
     let core@(cs, os) = initCore
-    let firstC = createCommit (addHashableA f) $ Just (Set.findMin cs)
-    let (hc, core') = S.runState (addCommit firstC) core
+    let (hc, core') = S.runState (addCommit [f] (cid (Set.findMin cs))) core
     let (branch1, core'') = foldl applyPatchToCore (hc, core') br1s
     let (branch2, core''') = foldl applyPatchToCore (hc, core'') br2s
     return $ BC core''' branch1 branch2
-    where applyPatchToCore :: (Commit,Core) -> SequentialPatch -> (Commit,Core)
+    where applyPatchToCore :: (Commit O.Hash,Core) -> SequentialPatch ->
+                              (Commit O.Hash,Core)
           applyPatchToCore (hc, core@(_,os)) p =
-              let Just f = mapM (O.getObject os) (hashes hc)
-                  hashableF = addHashableAs (applyPatch p f)
-                  newCommitWithFiles = createCommit hashableF (Just hc)
-              in S.runState (addCommit newCommitWithFiles) core
+              let Just f = mapM (O.getObject os) (cContents hc)
+              in S.runState (addCommit f (cid hc)) core
 --  shrink (BC (comSet,os) b1 b2)
 --   | parent b1 == parent b2 = []
 --   | otherwise              =
@@ -308,8 +309,8 @@ prop_rebaseEq :: BranchedCore -> Bool
 prop_rebaseEq (BC core b1 b2) =
   case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
    (Succ (_,os1) hc1, Succ (_,os2) hc2) ->
-      let reb1Files = fromJust $ mapM (O.getObject os1) (hashes hc1)
-          reb2Files = fromJust $ mapM (O.getObject os2) (hashes hc2)
+      let reb1Files = fromJust $ mapM (O.getObject os1) (cContents hc1)
+          reb2Files = fromJust $ mapM (O.getObject os2) (cContents hc2)
       in reb1Files == reb2Files
    _ -> False
 
@@ -335,11 +336,11 @@ testRebaseStart (core@(comSet,os),_) =
   let [com1,com2] = getBranches core
   in rebaseStart core com1 com2
 
-getBranches :: Core -> [Commit]
+getBranches :: Core -> [Commit O.Hash]
 getBranches (comSet,_) =
   let parentList = catMaybes $ Set.toList $ Set.map parent comSet
       hashes = Set.toList $ Set.map cid comSet
       branches = hashes \\ parentList
   in map (getCommit comSet) branches
-  where getCommit :: Set.Set Commit -> O.Hash -> Commit
+  where getCommit :: Set.Set (Commit O.Hash) -> O.Hash -> Commit O.Hash
         getCommit comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet

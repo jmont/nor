@@ -13,6 +13,7 @@ import Control.Applicative
 import Data.Serialize
 import qualified Data.Set as Set
 import Crypto.Hash.SHA1 (hash)
+import qualified Data.ByteString as BS
 
 import ObjectStore
 
@@ -35,7 +36,7 @@ class Monad m => CoreReader m where
     readCore :: m Core
 
 class CoreReader m => CoreExtender m where
-    addCommit' :: Commit File -> m (Commit Hash)
+    addCommit' :: [File] -> Hash -> m (Commit Hash)
 
 instance Monad CR where
   return a = CR $ const a
@@ -52,11 +53,12 @@ instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
 instance CoreExtender CX where
-  addCommit' c = CX $ \(cs, os) ->
-                        let fs = cContents c
-                            (hs, os') = addObjects os fs
-                            c' = Commit (parent c) hs (cid c)
-                        in (c', (Set.insert c' cs, os'))
+  addCommit' fs pcid = CX $ \(cs, os) ->
+    let (hs, os') = addObjects os fs
+        c' = Commit (Just pcid) hs $ mkCommitHash (pcid:hs)
+    in (c', (Set.insert c' cs, os'))
+    where mkCommitHash :: [Hash] -> Hash
+          mkCommitHash = Hash . hash . BS.concat . map getHash
 
 instance Serialize File where
     put (File p c) = put p >> put c
