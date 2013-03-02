@@ -46,6 +46,12 @@ addObject :: Serialize a => ObjectStore a -> a -> (Hash, ObjectStore a)
 addObject os a = let newHash = Hash $ hash (encode a)
                  in (newHash, OS $ Map.insert newHash a (store os))
 
+addObjects :: Serialize a => ObjectStore a -> [a] -> ([Hash], ObjectStore a)
+addObjects os [] = ([], os)
+addObjects os (a:as) = let (newh, os') = addObject os a
+                           (newhs, os'') = addObjects os' as
+                       in (newh:newhs, os'')
+
 --Return the object with the corresponding hash, if it exists.
 getObject :: ObjectStore a -> Hash -> Maybe a
 getObject os h = Map.lookup h (store os)
@@ -55,11 +61,6 @@ getObjects os = mapM (getObject os)
 
 getHashes :: ObjectStore a -> [Hash]
 getHashes = Map.keys . store
-
-addObjects :: Serialize a => ObjectStore a -> [a] -> ([Hash], ObjectStore a)
-addObjects os = foldr
-                    (\f (hs,os) -> let (h,os') = addObject os f in (h:hs,os'))
-                    ([],os)
 
 instance Functor ObjectStore where
    fmap fn fa = OS $ fmap fn (store fa)
