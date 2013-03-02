@@ -4,6 +4,8 @@ module Core
   , Core
   , CoreReader(..), CoreExtender(..)
   , initCore
+  , CR(..)
+  , CX(..)
   )
 where
 

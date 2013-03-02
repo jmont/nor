@@ -16,30 +16,36 @@ class (CoreExtender m, WorldReader m) => WorldWriter m where
 data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
 
+--wrtocr :: WR a -> CX a
+--wrtocr (WW f) = CX $ \c ->
+--
+--crtowr :: CX a -> WR a
+--crtowr (CX f) WR $ \(core, eph) = (snd (f core), eph)
+
 instance Monad WR where
-    return = unimp
-    m >>= k = unimp
+    return a = WR $ const a
+    (WR r) >>= k = WR $ \world -> rw (k (r world)) world
 
 instance CoreReader WR where
-    readCore = unimp
+    readCore = WR $ fst
 
 instance WorldReader WR where
-    readWorld = unimp
+    readWorld = WR $ id
 
 
 instance Monad WW where
-    return = unimp
-    m >>= k = unimp
+    return a = WW $ \w -> (a, w)
+    (WW m) >>= k = WW $ \w -> let (b, w') = m w in ww (k b) w'
 
 instance CoreReader WW where
-    readCore = unimp
+    readCore = WW $ \w -> (fst w, w)
 
 instance CoreExtender WW where
     addFile = unimp
     addCommit' = unimp
 
 instance WorldReader WW where
-    readWorld = unimp
+    readWorld = WW $ \w -> (w, w)
 
 instance WorldWriter WW where
     updateHead = unimp
