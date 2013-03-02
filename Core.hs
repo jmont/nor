@@ -1,9 +1,9 @@
-module Core 
+module Core
   ( File(..)
   , Commit(..)
   , Core
   , CoreReader(..), CoreExtender(..)
-  ) 
+  )
 where
 
 import Control.Applicative
@@ -12,25 +12,39 @@ import qualified Data.Set as Set
 
 import ObjectStore
 
+_createRepo :: IO () -- writes an initial core
+_createRepo = unimp
+
+_updateRepo :: CX a -> IO a
+_updateRepo = unimp
+
+_loadRepo :: CR a -> IO a
+_loadRepo = unimp
+
+unimp :: a
+unimp = error "not impelmented"
+
+data CR a = CR { rc :: Core -> a }
+data CX a = CX { xc :: Core -> (a, Core) }
+
+-- list of all commits, hash->file, head commit, commitCount
+type Core = (Set.Set Commit, ObjectStore File)
+
+data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
+                 , contents :: [String] -- Simple representation for now
+                 } deriving (Show,Eq)
+
+data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
+                     , hashes :: [Hash] -- Hashes of all files at given time
+                     , cid :: Hash
+                     } deriving (Show)
+
 class Monad m => CoreReader m where
     readCore :: m Core
 
 class CoreReader m => CoreExtender m where
     addFile   :: File   -> m Hash
     addCommit' :: Commit -> m ()
-
-
-_createRepo :: IO () -- writes an initial core
-_createRepo = unimp
-
-_updateRepo :: CX a -> IO a               
-_updateRepo = unimp
-
-_loadRepo :: CR a -> IO a    
-_loadRepo = unimp
-
-data CR a = CR { rc :: Core -> a }
-data CX a = CX { xc :: Core -> (a, Core) }
 
 instance Monad CR where
   return a = CR $ const a
@@ -42,7 +56,7 @@ instance Monad CX where
 
 instance CoreReader CR where
   readCore = CR $ id
-  
+
 instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
@@ -57,18 +71,10 @@ instance CoreExtender CX where
 
 
 
-data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
-                 , contents :: [String] -- Simple representation for now
-                 } deriving (Show,Eq)
 
 instance Serialize File where
     put (File p c) = put p >> put c
     get = File <$> get <*> get
-
-data Commit = Commit { parent :: Maybe Hash -- Initial commit has nothing
-                     , hashes :: [Hash] -- Hashes of all files at given time
-                     , cid :: Hash
-                     } deriving (Show)
 
 instance Ord Commit where
    compare c1 c2 = compare (cid c1) (cid c2)
@@ -77,10 +83,3 @@ instance Eq Commit where
 instance Serialize Commit where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
-
--- list of all commits, hash->file, head commit, commitCount
-type Core = (Set.Set Commit, ObjectStore File)
-
-
-unimp :: a
-unimp = error "not impelmented"
