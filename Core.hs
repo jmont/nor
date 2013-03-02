@@ -61,16 +61,11 @@ instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
 instance CoreExtender CX where
-  addFile file = CX $ \core -> (hash_of_new_file file core, new_core file core)
-   where hash_of_new_file = unimp
-         new_core = unimp
-        
-  addCommit' c = CX $ \core -> ((), core_with_commit core c)
-   where core_with_commit = unimp
-        
-
-
-
+  addFile file = CX $ \(cs, os) ->
+                            let (h, os') = addObject os file
+                            in (h, (cs, os'))
+  --(hash_of_new_file file core, new_core file core)
+  addCommit' c = CX $ \(cs, os) -> ((), (Set.insert c cs, os)) -- TODO fix
 
 instance Serialize File where
     put (File p c) = put p >> put c
