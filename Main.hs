@@ -61,24 +61,28 @@ getFile p = do
 -- If "-a" is the first argument, implicitly commit the current head's files.
 -- The parent of the new commit is the current head.
 -- The new commit becomes the current head.
-commit :: World -> [String] -> IO World
-commit w@((_, os), eph) ("-a":names) = do
-    let Just files = mapM (O.getObject os) (cContents (headC eph))
-    let paths = map path files ++ names
-    commit w paths
-commit (core, eph) names = do
+commit' :: [String] -> IO (WW Hash)
+-- TODO WE NEED MONAD TRANSFORMERS
+--commit' ("-a":names) = do
+--    w@((_, os), eph) <- readWorld
+--    let Just files = mapM (O.getObject os) (cContents (headC eph))
+--    let paths = map path files ++ names
+--    fs <- mapM getFile paths
+--    return . return $ commit'' fs
+commit' names = do
     fs <- mapM getFile names
-    let (newHead,newCore) = State.runState (addCommit fs (cid (headC eph))) core
-    let w' = (newCore, Ephemera newHead (toRebase eph))
-    print $ cid newHead
-    return w'
+    return $ commit'' fs
+commit'' :: [File] -> WW Hash
+commit'' fs = do
+    (core, eph) <- readWorld
+    com <- addCommit' fs (cid (headC eph))
+    return $ cid com
 
 -- Output the head commit and all other commits.
-printCommits :: World -> IO ()
-printCommits ((commits, _) , eph) = do
-    putStrLn $ "HEAD: " ++ show (cid (headC eph))
-    mapM_ print (Set.toList commits)
-    return ()
+tree :: WR String
+tree = do
+    ((commits, _) , eph) <- readWorld
+    return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
 
 -- Remove the file in the filesystem at the File's path.
 deleteFile :: File -> IO ()
@@ -119,14 +123,13 @@ checkout (core@(comSet, os), eph) hh =
           return ((comSet, os), Ephemera com (toRebase eph))
 
 -- Print the files from the commit corresponding to the specified hash.
-files :: World -> String -> IO World
-files w@((comSet, os), _) hh = do
+files :: String -> WR [String]
+files hh = crtowr $ do
+    (comSet, os) <- readCore
     let h = O.hexToHash hh
     let com = commitByHash comSet h
     let Just files = O.getObjects os (cContents com)
-    putStrLn $ "Files for " ++ hh
-    mapM_ print files
-    return w
+    return $ ("Files for " ++ hh) : map path files
 
 -- On the commit corresponding to the specified hash, replay commits
 -- between the least common ancestor of the head and the commit.
@@ -173,12 +176,12 @@ dispatch _ _ _ = error "Please continue rebasing before other commands"
 
 dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
-dispatch' w "commit" ns = commit w ns
-dispatch' w "tree" _ = printCommits w >> return w
+dispatch' w "commit" ns = commit' ns >>= (\ww -> writeRepo ww w)
+dispatch' w "tree" _ = readRepo tree w >> return w
 dispatch' w "checkout" [h] = checkout w h
 dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
-dispatch' w "files" [h] = files w h
-dispatch' _ "files" _ = error "files expects exactly one hash"
+dispatch' w "files" [h] = readRepo (files h) w >> return w -- TODO fixme
+dispatch' _ "files" _ = error "files' expects exactly one hash"
 dispatch' w "rebase" [arg] = rebase w arg
 dispatch' _ "rebase" _ = error "Usage: nor rebase <--continue | hash>"
 -- Default
