@@ -40,7 +40,9 @@ instance CoreReader WW where
     readCore = WW $ \w -> (fst w, w)
 
 instance CoreExtender WW where
-    addCommit' fs hash = cxtoww $ addCommit' fs hash
+    addCommit' fs hash = WW $ \(core, eph) ->
+        let (com, core') = (xc (addCommit' fs hash)) core
+        in (com, (core', Ephemera com (toRebase eph)))
 
 instance WorldReader WW where
     readWorld = WW $ \w -> (w, w)
