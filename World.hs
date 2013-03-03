@@ -17,11 +17,10 @@ class (CoreExtender m, WorldReader m) => WorldWriter m where
 data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
 
---wrtocr :: WR a -> CX a
---wrtocr (WW f) = CX $ \c ->
---
---crtowr :: CX a -> WR a
---crtowr (CX f) WR $ \(core, eph) = (snd (f core), eph)
+cxtoww :: CX a -> WW a
+cxtoww cx = WW $ \(core,eph) ->
+      let (a,core') = (xc cx) core
+      in (a,(core',eph))
 
 instance Monad WR where
     return a = WR $ const a
@@ -33,7 +32,6 @@ instance CoreReader WR where
 instance WorldReader WR where
     readWorld = WR $ id
 
-
 instance Monad WW where
     return a = WW $ \w -> (a, w)
     (WW m) >>= k = WW $ \w -> let (b, w') = m w in ww (k b) w'
@@ -42,14 +40,14 @@ instance CoreReader WW where
     readCore = WW $ \w -> (fst w, w)
 
 instance CoreExtender WW where
-    addCommit' = unimp
+    addCommit' fs hash = cxtoww $ addCommit' fs hash
 
 instance WorldReader WW where
     readWorld = WW $ \w -> (w, w)
 
 instance WorldWriter WW where
-    updateHead = unimp
-    updateToR = unimp
+    updateHead com = WW $ \(c,eph) -> ((),(c,Ephemera com (toRebase eph)))
+    updateToR toR = WW $ \(c,eph) -> ((),(c,Ephemera (headC eph) toR))
 
 -- All the information in the repository. An append-only Core, and a changing
 -- Ephemera.
