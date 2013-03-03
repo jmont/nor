@@ -108,9 +108,9 @@ restoreFiles fs = do
 -- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
 checkout :: World -> String -> IO World
-checkout ((comSet, os), eph) hh =
+checkout (core@(comSet, os), eph) hh =
     let h = O.hexToHash hh
-        com = head $ Set.toList $ Set.filter ((h==).cid) comSet -- TODO add error
+        Just com = commitById core h
         Just dFiles = mapM (O.getObject os) (cContents (headC eph))
         Just rFiles = mapM (O.getObject os) (cContents com)
     in do deleteFiles dFiles
