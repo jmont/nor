@@ -17,6 +17,9 @@ class (CoreExtender m, WorldReader m) => WorldWriter m where
 data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
 
+crtowr :: CR a -> WR a
+crtowr cr = WR $ \(core,eph) -> (rc cr) core
+
 cxtoww :: CX a -> WW a
 cxtoww cx = WW $ \(core,eph) ->
       let (a,core') = (xc cx) core
@@ -72,14 +75,13 @@ initWorld :: World
 initWorld = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
-_createRepo :: IO () -- writes an initial core
-_createRepo = unimp
+writeRepo :: Show a => WW a -> World -> IO World
+writeRepo (WW f) w =
+    let (s, w') = f w
+    in print s >> return w'
 
-_updateRepo :: WW a -> IO a
-_updateRepo = unimp
-
-_loadRepo :: WR a -> IO a
-_loadRepo = unimp
+readRepo:: Show a => WR a -> World -> IO ()
+readRepo (WR f) w = print (f w)
 
 unimp :: a
 unimp = error "not impelmented"
