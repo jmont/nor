@@ -17,19 +17,6 @@ class (CoreExtender m, WorldReader m) => WorldWriter m where
 data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
 
-crtowr :: CR a -> WR a
-crtowr cr = WR $ \(core,_) -> (rc cr) core
-
-cxtoww :: CX a -> WW a
-cxtoww cx = WW $ \(core,eph) ->
-      let (a,core') = (xc cx) core
-      in (a,(core',eph))
-
-wrtoww :: WR a -> WW a
-wrtoww wr = WW $ \w ->
-      let a = (rw wr) w
-      in (a,w)
-
 instance Monad WR where
     return a = WR $ const a
     (WR r) >>= k = WR $ \world -> rw (k (r world)) world

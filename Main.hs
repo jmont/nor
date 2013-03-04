@@ -8,7 +8,6 @@ import qualified Data.Set as Set
 import qualified Data.ByteString as S
 import qualified ObjectStore as O
 import qualified Data.List as List
-import qualified Control.Monad.State as State
 
 import Core
 import Nor
@@ -60,7 +59,7 @@ getFile p = do
 getFiles :: [String] -> IO [File]
 getFiles ps = mapM getFile ps
 
-getHCFiles :: WR [File]
+getHCFiles :: WorldReader m => m [File]
 getHCFiles = do
     ((_,os),eph) <- readWorld
     let Just files = mapM (O.getObject os) (cContents (headC eph))
@@ -69,14 +68,14 @@ getHCFiles = do
 -- Adds a new commit to the world containing the files specified.
 -- The parent of the new commit is the current head.
 -- The new commit becomes the current head.
-commit :: [File] -> WW (Commit Hash)
+commit :: WorldWriter m => [File] -> m (Commit Hash)
 commit fs = do
     (_, eph) <- readWorld
     com <- addCommit' fs (cid (headC eph))
     return com
 
 -- Output the head commit and all other commits.
-tree :: WR String
+tree :: WorldReader m => m String
 tree = do
     ((commits, _) , eph) <- readWorld
     return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
@@ -120,8 +119,8 @@ checkout (core@(comSet, os), eph) hh =
           return ((comSet, os), Ephemera com (toRebase eph))
 
 -- Print the files from the commit corresponding to the specified hash.
-files :: String -> WR [String]
-files hh = crtowr $ do
+files :: CoreReader m => String -> m [String]
+files hh = do
     (comSet, os) <- readCore
     let h = O.hexToHash hh
     let com = commitByHash comSet h
