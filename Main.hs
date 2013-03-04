@@ -175,6 +175,12 @@ dispatch w@(_, Ephemera _ _) "rebase" args = dispatch' w "rebase" args
 dispatch w@(_, Ephemera _ []) cmd args = dispatch' w cmd args
 dispatch _ _ _ = error "Please continue rebasing before other commands"
 
+deleteHCFiles :: WorldReader m => m (IO ())
+deleteHCFiles = liftM deleteFiles getHCFiles
+
+restoreHCFiles :: WorldReader m => m (IO ())
+restoreHCFiles = liftM restoreFiles getHCFiles
+
 dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
 dispatch' w "commit" ("-a":ns) =
@@ -185,13 +191,17 @@ dispatch' w "commit" ns =
 dispatch' w "tree" _ = readRepo tree w >> return w
 dispatch' w "checkout" [h] = checkout w h
 dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
-dispatch' w "checkout'" [h] = do
+dispatch' w "checkout2" [h] = do
   dFiles <- readRepo' getHCFiles w
   w' <- writeRepo (checkout' h) w
   rFiles <- readRepo' getHCFiles w'
   deleteFiles dFiles
   restoreFiles rFiles
   return w'
+dispatch' w "checkout3" [h] =
+  join (readRepo' deleteHCFiles w) >>
+  writeRepo (checkout' h) w >>=
+  (\w' -> join (readRepo' restoreHCFiles w') >> return w')
 dispatch' w "files" [h] = readRepo (files h) w >> return w -- TODO fixme
 dispatch' _ "files" _ = error "files' expects exactly one hash"
 dispatch' w "rebase" [arg] = rebase w arg

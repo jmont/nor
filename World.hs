@@ -75,5 +75,5 @@ writeRepo (WW f) w =
 readRepo:: Show a => WR a -> World -> IO ()
 readRepo (WR f) w = print (f w)
 
-readRepo' :: Show a => WR a -> World -> IO a
+readRepo' :: WR a -> World -> IO a
 readRepo' (WR f) w = return (f w)
