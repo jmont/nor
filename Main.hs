@@ -118,6 +118,11 @@ checkout (core@(comSet, os), eph) hh =
           putStrLn $ "Updated repo to " ++ hh
           return ((comSet, os), Ephemera com (toRebase eph))
 
+checkout' :: WorldWriter m => String -> m (Commit Hash)
+checkout' hh = readCore >>= (\core ->
+     let Just com = commitById core $ O.hexToHash hh
+     in updateHead com >> return com)
+
 -- Print the files from the commit corresponding to the specified hash.
 files :: CoreReader m => String -> m [String]
 files hh = do
@@ -180,6 +185,13 @@ dispatch' w "commit" ns =
 dispatch' w "tree" _ = readRepo tree w >> return w
 dispatch' w "checkout" [h] = checkout w h
 dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
+dispatch' w "checkout'" [h] = do
+  dFiles <- readRepo' getHCFiles w
+  w' <- writeRepo (checkout' h) w
+  rFiles <- readRepo' getHCFiles w'
+  deleteFiles dFiles
+  restoreFiles rFiles
+  return w'
 dispatch' w "files" [h] = readRepo (files h) w >> return w -- TODO fixme
 dispatch' _ "files" _ = error "files' expects exactly one hash"
 dispatch' w "rebase" [arg] = rebase w arg
