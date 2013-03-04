@@ -57,26 +57,23 @@ getFile p = do
     contents <- readFile ("./"++p)
     return $ File p (lines contents)
 
+getFiles :: [String] -> IO [File]
+getFiles ps = mapM getFile ps
+
+getHCFiles :: WR [File]
+getHCFiles = do
+    ((_,os),eph) <- readWorld
+    let Just files = mapM (O.getObject os) (cContents (headC eph))
+    return files
+
 -- Adds a new commit to the world containing the files specified.
--- If "-a" is the first argument, implicitly commit the current head's files.
 -- The parent of the new commit is the current head.
 -- The new commit becomes the current head.
-commit' :: [String] -> IO (WW Hash)
--- TODO WE NEED MONAD TRANSFORMERS
---commit' ("-a":names) = do
---    w@((_, os), eph) <- readWorld
---    let Just files = mapM (O.getObject os) (cContents (headC eph))
---    let paths = map path files ++ names
---    fs <- mapM getFile paths
---    return . return $ commit'' fs
-commit' names = do
-    fs <- mapM getFile names
-    return $ commit'' fs
-commit'' :: [File] -> WW Hash
-commit'' fs = do
-    (core, eph) <- readWorld
+commit :: [File] -> WW (Commit Hash)
+commit fs = do
+    (_, eph) <- readWorld
     com <- addCommit' fs (cid (headC eph))
-    return $ cid com
+    return com
 
 -- Output the head commit and all other commits.
 tree :: WR String
@@ -176,7 +173,11 @@ dispatch _ _ _ = error "Please continue rebasing before other commands"
 
 dispatch' :: World -> String -> [String] -> IO World
 -- Nor commands
-dispatch' w "commit" ns = commit' ns >>= (\ww -> writeRepo ww w)
+dispatch' w "commit" ("-a":ns) =
+    liftM2 (++) (getFiles ns) (readRepo' getHCFiles w) >>= return . commit >>=
+    (\ww -> writeRepo ww w)
+dispatch' w "commit" ns =
+    (getFiles ns) >>= return . commit >>= (\ww -> writeRepo ww w)
 dispatch' w "tree" _ = readRepo tree w >> return w
 dispatch' w "checkout" [h] = checkout w h
 dispatch' _ "checkout" _ = error "checkout expects exactly one hash"

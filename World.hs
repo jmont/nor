@@ -18,12 +18,17 @@ data WR a = WR { rw :: World -> a }
 data WW a = WW { ww :: World -> (a, World) }
 
 crtowr :: CR a -> WR a
-crtowr cr = WR $ \(core,eph) -> (rc cr) core
+crtowr cr = WR $ \(core,_) -> (rc cr) core
 
 cxtoww :: CX a -> WW a
 cxtoww cx = WW $ \(core,eph) ->
       let (a,core') = (xc cx) core
       in (a,(core',eph))
+
+wrtoww :: WR a -> WW a
+wrtoww wr = WW $ \w ->
+      let a = (rw wr) w
+      in (a,w)
 
 instance Monad WR where
     return a = WR $ const a
@@ -83,5 +88,5 @@ writeRepo (WW f) w =
 readRepo:: Show a => WR a -> World -> IO ()
 readRepo (WR f) w = print (f w)
 
-unimp :: a
-unimp = error "not impelmented"
+readRepo' :: Show a => WR a -> World -> IO a
+readRepo' (WR f) w = return (f w)
