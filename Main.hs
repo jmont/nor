@@ -187,19 +187,11 @@ dispatch' w "commit" ("-a":ns) =
 dispatch' w "commit" ns =
     (getFiles ns) >>= return . commit >>= (\ww -> writeRepo ww w)
 dispatch' w "tree" _ = readRepo tree w >> return w
-dispatch' w "checkout" [h] = checkout w h
-dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
-dispatch' w "checkout2" [h] = do
-  dFiles <- readRepo' getHCFiles w
-  w' <- writeRepo (checkout' h) w
-  rFiles <- readRepo' getHCFiles w'
-  deleteFiles dFiles
-  restoreFiles rFiles
-  return w'
-dispatch' w "checkout3" [h] =
+dispatch' w "checkout" [h] =
   join (readRepo' deleteHCFiles w) >>
   writeRepo (checkout' h) w >>=
   (\w' -> join (readRepo' restoreHCFiles w') >> return w')
+dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
 dispatch' w "files" [h] = readRepo (files h) w >> return w -- TODO fixme
 dispatch' _ "files" _ = error "files' expects exactly one hash"
 dispatch' w "rebase" [arg] = rebase w arg
