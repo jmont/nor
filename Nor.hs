@@ -22,16 +22,16 @@ data RebaseRes = Succ { core :: Core
                       deriving (Show)
 
 rebaseStart :: Core -> Commit Hash -> Commit Hash -> RebaseRes
-rebaseStart core fromC toC =
-   let lca = getLca core fromC toC
-       toRs = reverse $ takeWhile (/= lca) (ancestorList core fromC)
+rebaseStart core@(cs,_) fromC toC =
+   let lca = getLca cs fromC toC
+       toRs = reverse $ takeWhile (/= lca) (ancestorList cs fromC)
    in rebaseStep core toC toRs
 
 -- the following functions are pure and can have QC properties
 rebaseStep :: Core -> Commit Hash -> [Commit Hash] -> RebaseRes
 rebaseStep core hc [] = Succ core hc
-rebaseStep core@(_,os) hc (tor:tors) =
-    let lca = getLca core hc tor
+rebaseStep core@(cs,os) hc (tor:tors) =
+    let lca = getLca cs hc tor
         (noConfs, confs) = mergeCommit os hc tor lca
     in if null confs
         then
@@ -67,23 +67,23 @@ addCommit fs pcid = S.state (\(cs, os) ->
     where mkCommitHash :: [Hash] -> Hash
           mkCommitHash = Hash . hash . BS.concat . map getHash
 
-commitById :: Core -> Hash -> Maybe (Commit Hash)
-commitById (commitSet, _) id =
+commitById :: Set.Set (Commit Hash) -> Hash -> Maybe (Commit Hash)
+commitById commitSet id =
     foldl (\mc c@(Commit _ _ cid) ->
                 if id == cid then Just c
                              else mc) Nothing (Set.elems commitSet)
 
-getLca :: Core -> Commit Hash -> Commit Hash -> Commit Hash
-getLca core ca cb =
-   let ancSeta = Set.fromList (ancestorList core ca)
+getLca :: Set.Set (Commit Hash) -> Commit Hash -> Commit Hash -> Commit Hash
+getLca cs ca cb =
+   let ancSeta = Set.fromList (ancestorList cs ca)
    in foldr (\a z -> if Set.member a ancSeta then a else z)
-      (error "No LCA") (ancestorList core cb)
+      (error "No LCA") (ancestorList cs cb)
 
-ancestorList :: Core -> Commit Hash -> [Commit Hash]
+ancestorList :: Set.Set (Commit Hash) -> Commit Hash -> [Commit Hash]
 ancestorList _ c1@(Commit Nothing _ _) = [c1]
-ancestorList core c1@(Commit (Just pid) _ _) =
-    let Just p = commitById core pid
-    in c1 : ancestorList core p
+ancestorList cs c1@(Commit (Just pid) _ _) =
+    let Just p = commitById cs pid
+    in c1 : ancestorList cs p
 
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =

@@ -106,19 +106,19 @@ restoreFiles fs = do
 -- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
 checkout :: World -> String -> IO World
-checkout (core@(comSet, os), eph) hh =
+checkout ((cs, os), eph) hh =
     let h = O.hexToHash hh
-        Just com = commitById core h
+        Just com = commitById cs h
         Just dFiles = mapM (O.getObject os) (cContents (headC eph))
         Just rFiles = mapM (O.getObject os) (cContents com)
     in do deleteFiles dFiles
           restoreFiles rFiles
           putStrLn $ "Updated repo to " ++ hh
-          return ((comSet, os), Ephemera com (toRebase eph))
+          return ((cs, os), Ephemera com (toRebase eph))
 
 checkout' :: WorldWriter m => String -> m (Commit Hash)
-checkout' hh = readCore >>= (\core ->
-     let Just com = commitById core $ O.hexToHash hh
+checkout' hh = readCore >>= (\(cs, _) ->
+     let Just com = commitById cs $ O.hexToHash hh
      in updateHead com >> return com)
 
 -- Print the files from the commit corresponding to the specified hash.
