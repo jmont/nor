@@ -22,11 +22,9 @@ worldPath :: String
 worldPath = progDirPath ++ "/world"
 
 -- Serialize the world to the filesystem.
-saveWorld :: World -> IO ()
-saveWorld w = do
-    handle <- openFile worldPath WriteMode
-    S.hPutStr handle $ encode w
-    hClose handle
+saveWorld :: WorldReader m => m (IO ())
+saveWorld = readWorld >>= (\w -> return (openFile worldPath WriteMode >>=
+                                (\h -> S.hPutStr h (encode w) >> hClose h )))
 
 -- Unserialize the World from the filesystem. If no such serialized file
 -- exists, create the directory in which to save it, and use an empty World.
@@ -216,4 +214,4 @@ main = do
     when (null args) (getProgName >>= (\pn ->
         error ("Usage: " ++ pn ++ " < commit | tree | checkout | files | rebase >")))
     w' <- dispatch w (head args) (tail args)
-    saveWorld w'
+    join $ readRepo' saveWorld w'
