@@ -67,11 +67,10 @@ addCommit fs pcid = S.state (\(cs, os) ->
     where mkCommitHash :: [Hash] -> Hash
           mkCommitHash = Hash . hash . BS.concat . map getHash
 
-commitById :: Set.Set (Commit Hash) -> Hash -> Maybe (Commit Hash)
+commitById :: Set.Set (Commit Hash) -> Hash -> Commit Hash
 commitById commitSet id =
-    foldl (\mc c@(Commit _ _ cid) ->
-                if id == cid then Just c
-                             else mc) Nothing (Set.elems commitSet)
+    foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
+          (error "Commit not found") (Set.elems commitSet)
 
 getLca :: Set.Set (Commit Hash) -> Commit Hash -> Commit Hash -> Commit Hash
 getLca cs ca cb =
@@ -82,8 +81,7 @@ getLca cs ca cb =
 ancestorList :: Set.Set (Commit Hash) -> Commit Hash -> [Commit Hash]
 ancestorList _ c1@(Commit Nothing _ _) = [c1]
 ancestorList cs c1@(Commit (Just pid) _ _) =
-    let Just p = commitById cs pid
-    in c1 : ancestorList cs p
+    c1 : ancestorList cs (commitById cs pid)
 
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =

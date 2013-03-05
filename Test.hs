@@ -341,6 +341,4 @@ getBranches (comSet,_) =
   let parentList = catMaybes $ Set.toList $ Set.map parent comSet
       hashes = Set.toList $ Set.map cid comSet
       branches = hashes \\ parentList
-  in map (getCommit comSet) branches
-  where getCommit :: Set.Set (Commit O.Hash) -> O.Hash -> Commit O.Hash
-        getCommit comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
+  in map (commitById comSet) branches

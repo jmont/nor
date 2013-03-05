@@ -108,7 +108,7 @@ restoreFiles fs = do
 checkout :: World -> String -> IO World
 checkout ((cs, os), eph) hh =
     let h = O.hexToHash hh
-        Just com = commitById cs h
+        com = commitById cs h
         Just dFiles = mapM (O.getObject os) (cContents (headC eph))
         Just rFiles = mapM (O.getObject os) (cContents com)
     in do deleteFiles dFiles
@@ -118,7 +118,7 @@ checkout ((cs, os), eph) hh =
 
 checkout' :: WorldWriter m => String -> m (Commit Hash)
 checkout' hh = readCore >>= (\(cs, _) ->
-     let Just com = commitById cs $ O.hexToHash hh
+     let com = commitById cs $ O.hexToHash hh
      in updateHead com >> return com)
 
 -- Print the files from the commit corresponding to the specified hash.
@@ -126,7 +126,7 @@ files :: CoreReader m => String -> m [String]
 files hh = do
     (comSet, os) <- readCore
     let h = O.hexToHash hh
-    let com = commitByHash comSet h
+    let com = commitById comSet h
     let Just files = O.getObjects os (cContents com)
     return $ ("Files for " ++ hh) : map path files
 
@@ -144,7 +144,7 @@ rebase (core@(_,os), eph) "--continue" = do
             in map path files
 rebase (core@(comSet,_), eph) hh =
    let toHash = O.hexToHash hh
-       toCom = commitByHash comSet toHash
+       toCom = commitById comSet toHash
    in rebaseStop $ rebaseStart core (headC eph) toCom
 
 rebaseStop :: RebaseRes -> IO World
@@ -161,10 +161,6 @@ rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
       restoreFiles $ applyPatches combinedPatches files
       putStrLn "Conflicts! Fix them and run nor rebase --continue"
       return w
-
--- Lookup a commit by its hash
-commitByHash :: Set.Set (Commit Hash) -> O.Hash -> Commit Hash
-commitByHash comSet h = head $ Set.toList $ Set.filter ((h==).cid) comSet
 
 --Runs the given command with args to alter the world.
 --Ensures that if mid-rebase, no other commands can be used.
