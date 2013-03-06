@@ -38,7 +38,7 @@ instance Arbitrary BranchedCore where
                               (Commit O.Hash,Core)
           applyPatchToCore (hc, core@(_,os)) p =
               let Just f = mapM (O.getObject os) (cContents hc)
-              in S.runState (addCommit f (cid hc)) core
+              in S.runState (addCommit (applyPatch p f) (cid hc)) core
 --  shrink (BC (comSet,os) b1 b2)
 --   | parent b1 == parent b2 = []
 --   | otherwise              =
