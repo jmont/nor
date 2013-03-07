@@ -62,6 +62,8 @@ instance Serialize Ephemera where
    put (Ephemera h toR) = put h >> put toR
    get = Ephemera <$> get <*> get
 
+getHead :: WorldReader m => m (Commit Hash)
+getHead = readWorld >>= (\(_,eph) -> return $ headC eph)
 
 -- An "empty" World with a single empty Commit as the head.
 initWorld :: World
