@@ -86,4 +86,4 @@ main = do
     args <- getArgs
     when (null args) (getProgName >>= (\pn ->
         error ("Usage: " ++ pn ++ " < commit | tree | checkout | files | rebase >")))
-    runWorkingTree progDirPath worldPath (dispatch (head args) (tail args))
+    print =<< runWorkingTree progDirPath worldPath (dispatch (head args) (tail args))

@@ -4,10 +4,9 @@ module Core
   , Core
   , CoreReader(..), CoreExtender(..)
   , initCore
-  , CR(..)
-  , CX(..)
   , getFilesForCom
   , commitById'
+  , coreToIO
   )
 where
 
@@ -94,3 +93,6 @@ commitById' id = readCore >>= (\(commitSet,_) -> return
 initCore :: Core
 initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
            in (Set.singleton initC, mkEmptyOS)
+
+coreToIO :: CX a -> Core -> IO (a,Core)
+coreToIO (CX f) c = return $ f c

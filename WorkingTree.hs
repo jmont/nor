@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module WorkingTree
 where
 
@@ -13,7 +14,10 @@ import Core
 import ObjectStore
 import World
 
-data FileSystem = FS { trackedPaths :: Set.Set String
+liftState :: Monad m => m a -> b -> m (a,b)
+liftState m s = m >>= (\a -> return (a,s))
+
+data FileSystem = FS { trackedPaths :: Set.Set FilePath
                      , currFiles :: [File] }
 
 instance Serialize FileSystem where
@@ -22,7 +26,7 @@ instance Serialize FileSystem where
 
 type WorkingTree = (World,FileSystem)
 
-data WTW a = WTW { wwt :: WorkingTree -> (a,WorkingTree) }
+data WTW a = WTW { wwt :: WorldWriter m => FileSystem -> m (a,FileSystem) }
 data WTR a = WTR { rwt :: WorkingTree -> a }
 
 class WorldReader m => WorkingTreeReader m where
@@ -30,7 +34,7 @@ class WorldReader m => WorkingTreeReader m where
 
 
 class (WorldWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
-    trackFile :: String -> m ()
+    trackFile :: FilePath -> m ()
     changeHeadTo :: Commit Hash -> m ()
 
 instance Monad WTR where
@@ -38,8 +42,8 @@ instance Monad WTR where
     (WTR f) >>= k = WTR $ \wt -> rwt (k (f wt)) wt
 
 instance Monad WTW where
-    return a = WTW $ \wt -> (a,wt)
-    (WTW f) >>= k = WTW $ \wt -> let (b, wtw') = f wt in wwt (k b) wtw'
+    return a = WTW $ \fs -> return (a,fs)
+    (WTW f) >>= k = WTW $ \fs -> do { (b, fs') <- f fs ; wwt (k b) fs' }
 
 instance WorkingTreeReader WTR where
     readFs = WTR $ currFiles . snd
@@ -51,28 +55,26 @@ instance CoreReader WTR where
     readCore = WTR $ fst . fst
 
 instance WorkingTreeWriter WTW where
-    trackFile path = WTW $ \(w, FS tpaths cfs) -> ((),(w, FS (Set.insert path tpaths) cfs))
+    trackFile path = WTW $ \(FS tpaths cfs) -> return ((),FS (Set.insert path tpaths) cfs)
     changeHeadTo com = deleteFiles >> updateHead com >> getFilesForCom com >>= restoreFiles
-      where deleteFiles     = WTW $ \(w,FS _ _) -> ((),(w, FS Set.empty []))
-            restoreFiles fs = WTW $ \(w,FS _ _) -> ((),(w, FS (Set.fromList (map path fs)) fs))
+      where deleteFiles     = WTW $ \_ -> return ((),FS Set.empty [])
+            restoreFiles fs = WTW $ \_ -> return ((),FS (Set.fromList (map path fs)) fs)
 
 instance WorldWriter WTW where
-    updateHead com = WTW $ \((c,eph),fs) -> ((),((c, Ephemera com (toRebase eph)),fs))
-    updateToR  toR = WTW $ \((c,eph),fs) -> ((),((c,Ephemera (headC eph) toR),fs))
+    updateHead com = WTW $ liftState $ updateHead com
+    updateToR  toR = WTW $ liftState $ updateToR toR
 
 instance WorkingTreeReader WTW where
-    readFs = WTW $ \wtw -> ((currFiles . snd) wtw, wtw)
+    readFs = WTW $ \fs -> return (currFiles fs, fs)
 
 instance WorldReader WTW where
-   readWorld = WTW $ \wtw -> (fst wtw, wtw)
+   readWorld = WTW $ liftState $ readWorld
 
 instance CoreExtender WTW where
-   addCommit' fs pc = wwtowtw (addCommit' fs pc)
-    where wwtowtw :: WW a -> WTW a
-          wwtowtw (WW f) = WTW $ \(w,fs) -> let (a,w') = f w in (a,(w',fs))
+   addCommit' fs pc = WTW $ liftState $ addCommit' fs pc
 
 instance CoreReader WTW where
-   readCore = WTW $ \wtw -> (fst (fst wtw), wtw)
+   readCore = WTW $ liftState readCore
 
 --IO dealing stuff
 getFile :: String -> IO File
@@ -80,7 +82,7 @@ getFile p = do
    contents <- readFile ("./"++p)
    return $ File p (lines contents)
 
-getFiles :: [String] -> IO [File]
+getFiles :: [FilePath] -> IO [File]
 getFiles ps = mapM getFile ps
 
 -- Remove the file in the filesystem at the File's path.
@@ -109,24 +111,24 @@ restoreFiles fs = do
     return ()
 
 -- Serialize the world to the filesystem.
-saveWTree :: String -> WTR (IO ())
+saveWTree :: FilePath -> WTR (IO ())
 saveWTree worldPath = WTR (\wtw -> openFile worldPath WriteMode >>=
                                 (\h -> S.hPutStr h (encode wtw) >> hClose h ))
 
 -- Create the directory in which to save program data.
-createProgDir :: String -> IO ()
+createProgDir :: FilePath -> IO ()
 createProgDir progDirPath = createDirectory progDirPath
 
 -- Unserialize the World from the filesystem. If no such serialized file
 -- exists, create the directory in which to save it, and use an empty World.
-getWTree :: String -> String -> IO WorkingTree
-getWTree progDirPath worldPath = do
-    eitherW <- getWTree'
+loadWTree :: FilePath -> FilePath -> IO WorkingTree
+loadWTree progDirPath worldPath = do
+    eitherW <- loadWTree'
     case eitherW of
         Left _ -> createProgDir progDirPath >> return (initWorld,FS Set.empty [])
         Right wtw -> return wtw
-    where getWTree' :: IO (Either String WorkingTree)
-          getWTree' = E.catch
+    where loadWTree' :: IO (Either String WorkingTree)
+          loadWTree' = E.catch
               (do handle <- openFile worldPath ReadMode
                   encodedW <- S.hGetContents handle
                   hClose handle
@@ -134,14 +136,11 @@ getWTree progDirPath worldPath = do
               (\(e) -> hPrint stderr (e :: E.IOException) >>
                   return (Left "No World found."))
 
---TODO this is terrible code
-runWorkingTree :: Show a => String -> String -> WTW a -> IO ()
+runWorkingTree :: FilePath -> FilePath -> WTW a -> IO a
 runWorkingTree progDirPath worldPath (WTW f) = do
-    (w,FS tfs _) <- getWTree progDirPath worldPath
+    (w,FS tfs _) <- loadWTree progDirPath worldPath
     files <- getFiles (Set.toList tfs)
-    let initWT = (w, FS tfs files)
-    deleteFiles files
-    let (a, wtw@(_,fileSys')) = f initWT
-    restoreFiles (currFiles fileSys')
-    rwt (saveWTree worldPath) wtw
-    print a
+    ((a,fileSys'),world) <- writeRepo (f (FS tfs files)) w
+    deleteFiles files >> restoreFiles (currFiles fileSys')
+    rwt (saveWTree worldPath) (world,fileSys')
+    return a

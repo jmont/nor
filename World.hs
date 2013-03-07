@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module World
 where
 import Control.Applicative
@@ -15,7 +16,7 @@ class (CoreExtender m, WorldReader m) => WorldWriter m where
     updateToR :: [Commit Hash] -> m ()
 
 data WR a = WR { rw :: World -> a }
-data WW a = WW { ww :: World -> (a, World) }
+data WW a = WW { ww :: CoreExtender m => Ephemera -> m (a, Ephemera) }
 
 instance Monad WR where
     return a = WR $ const a
@@ -28,24 +29,25 @@ instance WorldReader WR where
     readWorld = WR $ id
 
 instance Monad WW where
-    return a = WW $ \w -> (a, w)
-    (WW m) >>= k = WW $ \w -> let (b, w') = m w in ww (k b) w'
+    return a = WW $ \eph -> return (a, eph)
+    (WW m) >>= k = WW $ \eph -> do { (b, eph') <- m eph ; ww (k b) eph' }
 
 instance CoreReader WW where
-    readCore = WW $ \w -> (fst w, w)
+    readCore = WW $ \eph -> readCore >>= (\core -> return (core,eph))
 
 -- Additionaly updates the head commit
 instance CoreExtender WW where
-    addCommit' fs pc = cxtoww (addCommit' fs pc) >>= (\com -> updateHead com >> return com)
-      where cxtoww :: CX a -> WW a
-            cxtoww cx = WW $ \(core,eph) -> let (a,core') = (xc cx) core in (a,(core',eph))
+    addCommit' fs pc = WW $ \eph -> addCommit' fs pc >>= (\com -> return (com,Ephemera com (toRebase eph)))
+    --cxtoww (addCommit' fs pc) >>= (\com -> updateHead com >> return com)
+    --  where cxtoww :: CX a -> WW a
+    --        cxtoww cx = WW $ \(core,eph) -> let (a,core') = (xc cx) core in (a,(core',eph))
 
 instance WorldReader WW where
-    readWorld = WW $ \w -> (w, w)
+    readWorld = WW $ \eph -> readCore >>= (\core -> return ((core,eph), eph))
 
 instance WorldWriter WW where
-    updateHead com = WW $ \(c,eph) -> ((),(c,Ephemera com (toRebase eph)))
-    updateToR toR = WW $ \(c,eph) -> ((),(c,Ephemera (headC eph) toR))
+    updateHead com = WW $ \eph -> return ((),Ephemera com (toRebase eph))
+    updateToR toR = WW $ \eph -> return ((),Ephemera (headC eph) toR)
 
 -- All the information in the repository. An append-only Core, and a changing
 -- Ephemera.
@@ -69,3 +71,8 @@ getHead = readWorld >>= (\(_,eph) -> return $ headC eph)
 initWorld :: World
 initWorld = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
+
+writeRepo :: WW a -> World -> IO (a,World)
+writeRepo (WW f) (c,eph) = do
+    ((a,eph'),c') <- coreToIO (f eph) c
+    return (a,(c',eph'))
