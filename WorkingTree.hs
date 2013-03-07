@@ -109,8 +109,8 @@ restoreFiles fs = do
     return ()
 
 -- Serialize the world to the filesystem.
-saveWorld :: String -> WTR (IO ())
-saveWorld worldPath = WTR (\wtw -> openFile worldPath WriteMode >>=
+saveWTree :: String -> WTR (IO ())
+saveWTree worldPath = WTR (\wtw -> openFile worldPath WriteMode >>=
                                 (\h -> S.hPutStr h (encode wtw) >> hClose h ))
 
 -- Create the directory in which to save program data.
@@ -119,14 +119,14 @@ createProgDir progDirPath = createDirectory progDirPath
 
 -- Unserialize the World from the filesystem. If no such serialized file
 -- exists, create the directory in which to save it, and use an empty World.
-getWorld :: String -> String -> IO WorkingTree
-getWorld progDirPath worldPath = do
-    eitherW <- getWorld'
+getWTree :: String -> String -> IO WorkingTree
+getWTree progDirPath worldPath = do
+    eitherW <- getWTree'
     case eitherW of
         Left _ -> createProgDir progDirPath >> return (initWorld,FS Set.empty [])
         Right wtw -> return wtw
-    where getWorld' :: IO (Either String WorkingTree)
-          getWorld' = E.catch
+    where getWTree' :: IO (Either String WorkingTree)
+          getWTree' = E.catch
               (do handle <- openFile worldPath ReadMode
                   encodedW <- S.hGetContents handle
                   hClose handle
@@ -137,11 +137,11 @@ getWorld progDirPath worldPath = do
 --TODO this is terrible code
 runWorkingTree :: Show a => String -> String -> WTW a -> IO ()
 runWorkingTree progDirPath worldPath (WTW f) = do
-    (w,FS tfs _) <- getWorld progDirPath worldPath
+    (w,FS tfs _) <- getWTree progDirPath worldPath
     files <- getFiles (Set.toList tfs)
     let initWT = (w, FS tfs files)
     deleteFiles files
     let (a, wtw@(_,fileSys')) = f initWT
     restoreFiles (currFiles fileSys')
-    rwt (saveWorld worldPath) wtw
+    rwt (saveWTree worldPath) wtw
     print a
