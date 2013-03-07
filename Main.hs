@@ -72,10 +72,13 @@ files hh = do
 --      return w
 
 dispatch :: WorkingTreeWriter m => String -> [String] -> m String
-dispatch "commit" ns = readFs >>= commit >>= return . show
-dispatch "tree" _ = tree
+dispatch "commit" [] = readFs >>= commit >>= return . show
+dispatch "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
+  where add' [] = return ()
+        add' (n:ns) = trackFile n >> add' ns
+dispatch "tree" [] = tree
 dispatch "files" [h] = files h >>= return . show
-dispatch "checkout" [h] = liftM (headC . snd) readWorld >>= (\com -> changeHeadTo com >> return (show com))
+dispatch "checkout" [h] = commitById' (O.hexToHash h) >>= (\com -> changeHeadTo com >> return (show com))
 dispatch _ _ = error "Invlaid command"
 
 --Runs the given command with args to alter the world.
