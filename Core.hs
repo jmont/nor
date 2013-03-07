@@ -6,10 +6,12 @@ module Core
   , initCore
   , CR(..)
   , CX(..)
+  , getFilesForCom
   )
 where
 
 import Control.Applicative
+import qualified Data.Maybe as Maybe
 import Data.Serialize
 import qualified Data.Set as Set
 import Crypto.Hash.SHA1 (hash)
@@ -71,6 +73,11 @@ instance Eq (Commit a) where
 instance Serialize a => Serialize (Commit a) where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
+
+getFilesForCom :: CoreReader m => Commit Hash -> m [File]
+getFilesForCom com = do
+  (cs,os) <- readCore
+  return $ Maybe.mapMaybe (getObject os) (cContents com)
 
 -- An empty Core
 initCore :: Core
