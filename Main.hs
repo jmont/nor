@@ -1,17 +1,10 @@
 import Control.Monad
 import System.Environment
-import System.Directory
-import System.IO
-import Data.Serialize
-import qualified Control.Exception as E
 import qualified Data.Set as Set
-import qualified Data.ByteString as S
 import qualified ObjectStore as O
-import qualified Data.List as List
 
 import Core
 import Nor
-import Patch
 import WorkingTree
 import World
 import ObjectStore
@@ -36,11 +29,6 @@ tree :: WorldReader m => m String
 tree = do
     ((commits, _) , eph) <- readWorld
     return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
-
-checkout :: WorldWriter m => String -> m (Commit Hash)
-checkout hh = readCore >>= (\(cs, _) ->
-     let com = commitById cs $ O.hexToHash hh
-     in updateHead com >> return com)
 
 -- Print the files from the commit corresponding to the specified hash.
 files :: CoreReader m => String -> m [String]
