@@ -16,7 +16,8 @@ data WTW a = WTW { wwt :: WorkingTree -> (a,WorkingTree) }
 data WTR a = WTR { rwt :: WorkingTree -> a }
 
 class WorldReader m => WorkingTreeReader m where
-    readTree :: m WorkingTree
+    readFs :: m [File]
+
 
 class (WorldWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
     changeHeadTo :: Commit Hash -> m ()
@@ -30,7 +31,7 @@ instance Monad WTW where
     (WTW f) >>= k = WTW $ \wt -> let (b, wtw') = f wt in wwt (k b) wtw'
 
 instance WorkingTreeReader WTR where
-    readTree = WTR id
+    readFs = WTR $ inputFs . snd
 
 instance WorldReader WTR where
     readWorld = WTR $ fst
@@ -49,7 +50,7 @@ instance WorldWriter WTW where
     updateToR  toR = WTW $ \((c,eph),fs) -> ((),((c,Ephemera (headC eph) toR),fs))
 
 instance WorkingTreeReader WTW where
-    readTree = WTW $ \wtw -> (wtw, wtw)
+    readFs = WTW $ \wtw -> ((inputFs . snd) wtw, wtw)
 
 instance WorldReader WTW where
    readWorld = WTW $ \wtw -> (fst wtw, wtw)
