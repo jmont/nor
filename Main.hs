@@ -21,7 +21,7 @@ worldPath = progDirPath ++ "/world"
 commit :: WorldWriter m => [File] -> m (Commit Hash)
 commit fs = do
     (_, eph) <- readWorld
-    com <- addCommit' fs (cid (headC eph))
+    com <- addCommit' fs (headC eph)
     return com
 
 -- Output the head commit and all other commits.

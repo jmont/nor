@@ -67,7 +67,7 @@ instance WorldReader WTW where
    readWorld = WTW $ \wtw -> (fst wtw, wtw)
 
 instance CoreExtender WTW where
-   addCommit' fs hash = wwtowtw (addCommit' fs hash)
+   addCommit' fs pc = wwtowtw (addCommit' fs pc)
     where wwtowtw :: WW a -> WTW a
           wwtowtw (WW f) = WTW $ \(w,fs) -> let (a,w') = f w in (a,(w',fs))
 

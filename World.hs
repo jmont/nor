@@ -36,7 +36,7 @@ instance CoreReader WW where
 
 -- Additionaly updates the head commit
 instance CoreExtender WW where
-    addCommit' fs hash = cxtoww (addCommit' fs hash) >>= (\com -> updateHead com >> return com)
+    addCommit' fs pc = cxtoww (addCommit' fs pc) >>= (\com -> updateHead com >> return com)
       where cxtoww :: CX a -> WW a
             cxtoww cx = WW $ \(core,eph) -> let (a,core') = (xc cx) core in (a,(core',eph))
 
