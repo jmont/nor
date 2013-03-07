@@ -7,6 +7,7 @@ module Core
   , CR(..)
   , CX(..)
   , getFilesForCom
+  , commitById'
   )
 where
 
@@ -76,8 +77,13 @@ instance Serialize a => Serialize (Commit a) where
 
 getFilesForCom :: CoreReader m => Commit Hash -> m [File]
 getFilesForCom com = do
-  (cs,os) <- readCore
+  (_,os) <- readCore
   return $ Maybe.mapMaybe (getObject os) (cContents com)
+
+commitById' :: CoreReader m => Hash -> m (Commit Hash)
+commitById' id = readCore >>= (\(commitSet,_) -> return
+    (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
+           (error "Commit not found") (Set.elems commitSet)))
 
 -- An empty Core
 initCore :: Core
