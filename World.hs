@@ -69,14 +69,3 @@ getHead = readWorld >>= (\(_,eph) -> return $ headC eph)
 initWorld :: World
 initWorld = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
-
-writeRepo :: Show a => WW a -> World -> IO World
-writeRepo (WW f) w =
-    let (s, w') = f w
-    in print s >> return w'
-
-readRepo:: Show a => WR a -> World -> IO ()
-readRepo (WR f) w = print (f w)
-
-readRepo' :: WR a -> World -> IO a
-readRepo' (WR f) w = return (f w)
