@@ -81,39 +81,6 @@ dispatch "files" [h] = files h >>= return . show
 dispatch "checkout" [h] = commitById' (O.hexToHash h) >>= (\com -> changeHeadTo com >> return (show com))
 dispatch _ _ = error "Invlaid command"
 
---Runs the given command with args to alter the world.
---Ensures that if mid-rebase, no other commands can be used.
---dispatch :: World -> String -> [String] -> IO World
---dispatch w@(_, Ephemera _ _) "rebase" args = dispatch' w "rebase" args
---dispatch w@(_, Ephemera _ []) cmd args = dispatch' w cmd args
---dispatch _ _ _ = error "Please continue rebasing before other commands"
---
---deleteHCFiles :: WorldReader m => m (IO ())
---deleteHCFiles = liftM deleteFiles getHCFiles
---
---restoreHCFiles :: WorldReader m => m (IO ())
---restoreHCFiles = liftM restoreFiles getHCFiles
---
---dispatch' :: World -> String -> [String] -> IO World
----- Nor commands
---dispatch' w "commit" ("-a":ns) =
---    liftM2 (++) (getFiles ns) (readRepo' getHCFiles w) >>= return . commit >>=
---    (\ww -> writeRepo ww w)
---dispatch' w "commit" ns =
---    (getFiles ns) >>= return . commit >>= (\ww -> writeRepo ww w)
---dispatch' w "tree" _ = readRepo tree w >> return w
---dispatch' w "checkout" [h] =
---  join (readRepo' deleteHCFiles w) >>
---  writeRepo (checkout' h) w >>=
---  (\w' -> join (readRepo' restoreHCFiles w') >> return w')
---dispatch' _ "checkout" _ = error "checkout expects exactly one hash"
---dispatch' w "files" [h] = readRepo (files h) w >> return w -- TODO fixme
---dispatch' _ "files" _ = error "files' expects exactly one hash"
---dispatch' w "rebase" [arg] = rebase w arg
---dispatch' _ "rebase" _ = error "Usage: nor rebase <--continue | hash>"
----- Default
---dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
-
 main :: IO ()
 main = do
     args <- getArgs
