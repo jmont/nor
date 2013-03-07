@@ -1,17 +1,13 @@
 import Control.Monad
 import System.Environment
-import System.Directory
-import System.IO
-import Data.Serialize
-import qualified Control.Exception as E
 import qualified Data.Set as Set
-import qualified Data.ByteString as S
 import qualified ObjectStore as O
 import qualified Data.List as List
 
 import Core
 import Nor
 import Patch
+import WorkingTree
 import World
 import ObjectStore
 
@@ -20,32 +16,6 @@ progDirPath :: String
 progDirPath = "./.nor"
 worldPath :: String
 worldPath = progDirPath ++ "/world"
-
--- Serialize the world to the filesystem.
-saveWorld :: WorldReader m => m (IO ())
-saveWorld = readWorld >>= (\w -> return (openFile worldPath WriteMode >>=
-                                (\h -> S.hPutStr h (encode w) >> hClose h )))
-
--- Unserialize the World from the filesystem. If no such serialized file
--- exists, create the directory in which to save it, and use an empty World.
-getWorld :: IO World
-getWorld = do
-    eitherW <- getWorld'
-    case eitherW of
-        Left _ -> createProgDir >> return initWorld
-        Right w -> return w
-    where getWorld' :: IO (Either String World)
-          getWorld' = E.catch
-              (do handle <- openFile worldPath ReadMode
-                  encodedW <- S.hGetContents handle
-                  hClose handle
-                  return $ decode encodedW)
-              (\(e) -> hPrint stderr (e :: E.IOException) >>
-                  return (Left "No World found."))
-
--- Create the directory in which to save program data.
-createProgDir :: IO ()
-createProgDir = createDirectory progDirPath
 
 -- Create a File with contents of the file at the specified path in the
 -- filesystem. Error if the file doesn't exist.
@@ -58,10 +28,7 @@ getFiles :: [String] -> IO [File]
 getFiles ps = mapM getFile ps
 
 getHCFiles :: WorldReader m => m [File]
-getHCFiles = do
-    ((_,os),eph) <- readWorld
-    let Just files = mapM (O.getObject os) (cContents (headC eph))
-    return files
+getHCFiles = getHead >>= getFilesForCom
 
 -- Adds a new commit to the world containing the files specified.
 -- The parent of the new commit is the current head.
@@ -77,31 +44,6 @@ tree :: WorldReader m => m String
 tree = do
     ((commits, _) , eph) <- readWorld
     return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
-
--- Remove the file in the filesystem at the File's path.
-deleteFile :: File -> IO ()
-deleteFile (File p _) = do
-    fileExists <- doesFileExist p
-    when fileExists $ removeFile p
-
--- Remove the file in the filesystem at path of each File.
-deleteFiles :: [File] -> IO ()
-deleteFiles fs = do
-    mapM_ deleteFile fs
-    return ()
-
--- Write the contents of the File to its path in the filesystem.
-restoreFile :: File -> IO ()
-restoreFile (File p cs) = do
-    handle <- openFile p WriteMode
-    hPutStr handle $ unlines cs
-    hClose handle
-
--- Write the contents of multiple Files to their path in the filesystem.
-restoreFiles :: [File] -> IO ()
-restoreFiles fs = do
-    mapM_ restoreFile fs
-    return ()
 
 -- Remove files in the current head commit. Restore the files from the commit
 -- corresponding to the specified hash. This commit is made the head commit.
@@ -197,9 +139,9 @@ dispatch' w _ _ = putStrLn "    ! Invalid Command" >> return w
 
 main :: IO ()
 main = do
-    w <- getWorld
+    w <- getWorld progDirPath worldPath
     args <- getArgs
     when (null args) (getProgName >>= (\pn ->
         error ("Usage: " ++ pn ++ " < commit | tree | checkout | files | rebase >")))
     w' <- dispatch w (head args) (tail args)
-    join $ readRepo' saveWorld w'
+    join $ readRepo' (saveWorld worldPath) w'

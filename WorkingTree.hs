@@ -1,7 +1,13 @@
 module WorkingTree
 where
 
+import Control.Monad
+import qualified Control.Exception as E
+import qualified Data.ByteString as S
 import qualified Data.List as List
+import Data.Serialize
+import System.Directory
+import System.IO
 
 import Core
 import ObjectStore
@@ -62,3 +68,68 @@ instance CoreExtender WTW where
 
 instance CoreReader WTW where
    readCore = WTW $ \wtw -> (fst (fst wtw), wtw)
+
+--IO dealing stuff
+
+-- Remove the file in the filesystem at the File's path.
+deleteFile :: File -> IO ()
+deleteFile (File p _) = do
+    fileExists <- doesFileExist p
+    when fileExists $ removeFile p
+
+-- Remove the file in the filesystem at path of each File.
+deleteFiles :: [File] -> IO ()
+deleteFiles fs = do
+    mapM_ deleteFile fs
+    return ()
+
+-- Write the contents of the File to its path in the filesystem.
+restoreFile :: File -> IO ()
+restoreFile (File p cs) = do
+    handle <- openFile p WriteMode
+    hPutStr handle $ unlines cs
+    hClose handle
+
+-- Write the contents of multiple Files to their path in the filesystem.
+restoreFiles :: [File] -> IO ()
+restoreFiles fs = do
+    mapM_ restoreFile fs
+    return ()
+
+-- Serialize the world to the filesystem.
+saveWorld :: String -> WorldReader m => m (IO ())
+saveWorld worldPath = readWorld >>= (\w -> return (openFile worldPath WriteMode >>=
+                                (\h -> S.hPutStr h (encode w) >> hClose h )))
+
+-- Create the directory in which to save program data.
+createProgDir :: String -> IO ()
+createProgDir progDirPath = createDirectory progDirPath
+
+-- Unserialize the World from the filesystem. If no such serialized file
+-- exists, create the directory in which to save it, and use an empty World.
+getWorld :: String -> String -> IO World
+getWorld progDirPath worldPath = do
+    eitherW <- getWorld'
+    case eitherW of
+        Left _ -> createProgDir progDirPath >> return initWorld
+        Right w -> return w
+    where getWorld' :: IO (Either String World)
+          getWorld' = E.catch
+              (do handle <- openFile worldPath ReadMode
+                  encodedW <- S.hGetContents handle
+                  hClose handle
+                  return $ decode encodedW)
+              (\(e) -> hPrint stderr (e :: E.IOException) >>
+                  return (Left "No World found."))
+
+--TODO this is terrible code
+runWorkingTree :: Show a => String -> String -> WTW a -> IO ()
+runWorkingTree progDirPath worldPath (WTW f) = do
+    (core,eph) <- getWorld progDirPath worldPath
+    let (WR f') = getFilesForCom (headC eph) >>= (\fs -> return ((core,eph),FS fs fs))
+    let initWT = f' (core,eph)
+    let (a, (w',fileSys')) = f initWT
+    deleteFiles (inputFs fileSys')
+    restoreFiles (outputFs fileSys')
+    rw (saveWorld worldPath) w'
+    print a
