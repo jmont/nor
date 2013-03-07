@@ -62,9 +62,9 @@ instance WorldReader WTW where
    readWorld = WTW $ \wtw -> (fst wtw, wtw)
 
 instance CoreExtender WTW where
-   addCommit' fs hash = cxtowtw (addCommit' fs hash)
-    where cxtowtw :: CX a -> WTW a
-          cxtowtw cx = WTW $ \((core,eph),fs) -> let (a,core') = (xc cx) core in (a,((core',eph),fs))
+   addCommit' fs hash = wwtowtw (addCommit' fs hash)
+    where wwtowtw :: WW a -> WTW a
+          wwtowtw (WW f) = WTW $ \(w,fs) -> let (a,w') = f w in (a,(w',fs))
 
 instance CoreReader WTW where
    readCore = WTW $ \wtw -> (fst (fst wtw), wtw)
