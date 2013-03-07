@@ -34,10 +34,11 @@ instance Monad WW where
 instance CoreReader WW where
     readCore = WW $ \w -> (fst w, w)
 
+-- Additionaly updates the head commit
 instance CoreExtender WW where
-    addCommit' fs hash = WW $ \(core, eph) ->
-        let (com, core') = (xc (addCommit' fs hash)) core
-        in (com, (core', Ephemera com (toRebase eph)))
+    addCommit' fs hash = cxtoww (addCommit' fs hash) >>= (\com -> updateHead com >> return com)
+      where cxtoww :: CX a -> WW a
+            cxtoww cx = WW $ \(core,eph) -> let (a,core') = (xc cx) core in (a,(core',eph))
 
 instance WorldReader WW where
     readWorld = WW $ \w -> (w, w)
