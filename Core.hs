@@ -79,6 +79,7 @@ instance (Ord a, Serialize a) => Serialize (Commit a) where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
 
+--TODO: This function could do better error handling
 getFilesForCom :: CoreReader m => Commit Hash -> m [File]
 getFilesForCom com = do
   (_,os) <- readCore
