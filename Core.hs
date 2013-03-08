@@ -11,6 +11,7 @@ module Core
 where
 
 import Control.Applicative
+import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import Data.Serialize
 import qualified Data.Set as Set
@@ -54,13 +55,12 @@ instance CoreReader CR where
 instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
---TODO Order does matter (sort or set?)
 instance CoreExtender CX where
   addCommit' fs pc = CX $ \(cs, os) ->
     let (hs, os') = addObjects os fs
         pcid = cid pc
         hashSet = Set.fromList hs
-        c' = Commit (Just pcid) hashSet $ mkCommitHash (pcid:hs)
+        c' = Commit (Just pcid) hashSet $ mkCommitHash (pcid : List.sort hs)
     in if Set.member pc cs
        then (c', (Set.insert c' cs, os'))
        else error "Parent commit not found in commit set"
