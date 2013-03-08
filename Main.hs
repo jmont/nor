@@ -6,7 +6,7 @@ import qualified ObjectStore as O
 import Core
 import Nor
 import WorkingTree
-import World
+import Repo
 import ObjectStore
 
 -- Location in which to save program data.
@@ -18,16 +18,16 @@ worldPath = progDirPath ++ "/world"
 -- Adds a new commit to the world containing the files specified.
 -- The parent of the new commit is the current head.
 -- The new commit becomes the current head.
-commit :: WorldWriter m => [File] -> m (Commit Hash)
+commit :: RepoWriter m => [File] -> m (Commit Hash)
 commit fs = do
-    (_, eph) <- readWorld
+    (_, eph) <- readRepo
     com <- addCommit' fs (headC eph)
     return com
 
 -- Output the head commit and all other commits.
-tree :: WorldReader m => m String
+tree :: RepoReader m => m String
 tree = do
-    ((commits, _) , eph) <- readWorld
+    ((commits, _) , eph) <- readRepo
     return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
 
 -- Print the files from the commit corresponding to the specified hash.

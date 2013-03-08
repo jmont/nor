@@ -12,10 +12,7 @@ import System.IO
 
 import Core
 import ObjectStore
-import World
-
-liftState :: Monad m => m a -> b -> m (a,b)
-liftState m s = m >>= (\a -> return (a,s))
+import Repo
 
 data FileSystem = FS { trackedPaths :: Set.Set FilePath
                      , currFiles :: [File] }
@@ -24,16 +21,16 @@ instance Serialize FileSystem where
   put (FS tps _) = put tps
   get = liftM2 FS get (return [])
 
-type WorkingTree = (World,FileSystem)
+type WorkingTree = (Repo,FileSystem)
 
-data WTW a = WTW { wwt :: WorldWriter m => FileSystem -> m (a,FileSystem) }
+data WTW a = WTW { wwt :: RepoWriter m => FileSystem -> m (a,FileSystem) }
 data WTR a = WTR { rwt :: WorkingTree -> a }
 
-class WorldReader m => WorkingTreeReader m where
+class RepoReader m => WorkingTreeReader m where
     readFs :: m [File]
 
 
-class (WorldWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
+class (RepoWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
     trackFile :: FilePath -> m ()
     changeHeadTo :: Commit Hash -> m ()
 
@@ -48,8 +45,8 @@ instance Monad WTW where
 instance WorkingTreeReader WTR where
     readFs = WTR $ currFiles . snd
 
-instance WorldReader WTR where
-    readWorld = WTR $ fst
+instance RepoReader WTR where
+    readRepo = WTR $ fst
 
 instance CoreReader WTR where
     readCore = WTR $ fst . fst
@@ -60,15 +57,18 @@ instance WorkingTreeWriter WTW where
       where deleteFiles     = WTW $ \_ -> return ((),FS Set.empty [])
             restoreFiles fs = WTW $ \_ -> return ((),FS (Set.fromList (map path fs)) fs)
 
-instance WorldWriter WTW where
+liftState :: Monad m => m a -> b -> m (a,b)
+liftState m s = m >>= (\a -> return (a,s))
+
+instance RepoWriter WTW where
     updateHead com = WTW $ liftState $ updateHead com
     updateToR  toR = WTW $ liftState $ updateToR toR
 
 instance WorkingTreeReader WTW where
     readFs = WTW $ \fs -> return (currFiles fs, fs)
 
-instance WorldReader WTW where
-   readWorld = WTW $ liftState $ readWorld
+instance RepoReader WTW where
+   readRepo = WTW $ liftState $ readRepo
 
 instance CoreExtender WTW where
    addCommit' fs pc = WTW $ liftState $ addCommit' fs pc
@@ -119,13 +119,13 @@ saveWTree worldPath = WTR (\wtw -> openFile worldPath WriteMode >>=
 createProgDir :: FilePath -> IO ()
 createProgDir progDirPath = createDirectory progDirPath
 
--- Unserialize the World from the filesystem. If no such serialized file
--- exists, create the directory in which to save it, and use an empty World.
+-- Unserialize the Repo from the filesystem. If no such serialized file
+-- exists, create the directory in which to save it, and use an empty Repo.
 loadWTree :: FilePath -> FilePath -> IO WorkingTree
 loadWTree progDirPath worldPath = do
     eitherW <- loadWTree'
     case eitherW of
-        Left _ -> createProgDir progDirPath >> return (initWorld,FS Set.empty [])
+        Left _ -> createProgDir progDirPath >> return (initRepo,FS Set.empty [])
         Right wtw -> return wtw
     where loadWTree' :: IO (Either String WorkingTree)
           loadWTree' = E.catch
@@ -134,7 +134,7 @@ loadWTree progDirPath worldPath = do
                   hClose handle
                   return $ decode encodedW)
               (\(e) -> hPrint stderr (e :: E.IOException) >>
-                  return (Left "No World found."))
+                  return (Left "No Repo found."))
 
 runWorkingTree :: FilePath -> FilePath -> WTW a -> IO a
 runWorkingTree progDirPath worldPath (WTW f) = do
