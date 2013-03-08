@@ -4,7 +4,6 @@ import qualified Data.Set as Set
 import qualified ObjectStore as O
 
 import Core
-import Nor
 import WorkingTree
 import Repo
 import ObjectStore
@@ -33,10 +32,9 @@ tree = do
 -- Print the files from the commit corresponding to the specified hash.
 files :: CoreReader m => String -> m [String]
 files hh = do
-    (comSet, os) <- readCore
     let h = O.hexToHash hh
-    let com = commitById comSet h
-    let Just files = O.getObjects os (cContents com)
+    com <- commitById' h
+    files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
 -- On the commit corresponding to the specified hash, replay commits

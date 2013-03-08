@@ -30,7 +30,7 @@ data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  } deriving (Show,Eq)
 
 data Commit a = Commit { parent :: Maybe Hash -- Initial commit has nothing
-                       , cContents :: [a] -- Associated as with commit
+                       , cContents :: Set.Set a -- Associated as with commit
                        , cid :: Hash
                        } deriving (Show)
 
@@ -59,7 +59,8 @@ instance CoreExtender CX where
   addCommit' fs pc = CX $ \(cs, os) ->
     let (hs, os') = addObjects os fs
         pcid = cid pc
-        c' = Commit (Just pcid) hs $ mkCommitHash (pcid:hs)
+        hashSet = Set.fromList hs
+        c' = Commit (Just pcid) hashSet $ mkCommitHash (pcid:hs)
     in if Set.member pc cs
        then (c', (Set.insert c' cs, os'))
        else error "Parent commit not found in commit set"
@@ -74,14 +75,14 @@ instance Ord (Commit a) where
    compare c1 c2 = compare (cid c1) (cid c2)
 instance Eq (Commit a) where
    c1 == c2 = cid c1 == cid c2
-instance Serialize a => Serialize (Commit a) where
+instance (Ord a, Serialize a) => Serialize (Commit a) where
     put (Commit pid hs id) = put pid >> put hs >> put id
     get = Commit <$> get <*> get <*> get
 
 getFilesForCom :: CoreReader m => Commit Hash -> m [File]
 getFilesForCom com = do
   (_,os) <- readCore
-  return $ Maybe.mapMaybe (getObject os) (cContents com)
+  return $ Maybe.mapMaybe (getObject os) (Set.toList (cContents com))
 
 commitById' :: CoreReader m => Hash -> m (Commit Hash)
 commitById' id = readCore >>= (\(commitSet,_) -> return
@@ -90,7 +91,7 @@ commitById' id = readCore >>= (\(commitSet,_) -> return
 
 -- An empty Core
 initCore :: Core
-initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
+initCore = let initC = Commit Nothing Set.empty $ Hash (hash (encode ""))
            in (Set.singleton initC, mkEmptyOS)
 
 -- Lifts Core Extender into IO
