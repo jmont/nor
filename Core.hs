@@ -39,7 +39,7 @@ class Monad m => CoreReader m where
     readCore :: m Core
 
 class CoreReader m => CoreExtender m where
-    addCommit' :: [File] -> Commit Hash -> m (Commit Hash)
+    addCommit :: [File] -> Commit Hash -> m (Commit Hash)
 
 instance Monad CR where
   return a = CR $ const a
@@ -56,7 +56,7 @@ instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
 instance CoreExtender CX where
-  addCommit' fs pc = CX $ \(cs, os) ->
+  addCommit fs pc = CX $ \(cs, os) ->
     let (hs, os') = addObjects os fs
         pcid = cid pc
         hashSet = Set.fromList hs

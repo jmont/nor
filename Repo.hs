@@ -48,7 +48,7 @@ instance CoreReader RW where
 
 -- Additionaly updates the head commit
 instance CoreExtender RW where
-    addCommit' fs pc = RW (liftState (addCommit' fs pc)) >>=
+    addCommit fs pc = RW (liftState (addCommit fs pc)) >>=
                        (\com -> updateHead com >> return com)
 
 instance RepoReader RW where

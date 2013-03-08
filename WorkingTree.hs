@@ -75,7 +75,7 @@ instance RepoReader WTW where
    readRepo = WTW $ liftState $ readRepo
 
 instance CoreExtender WTW where
-   addCommit' fs pc = WTW $ liftState $ addCommit' fs pc
+   addCommit fs pc = WTW $ liftState $ addCommit fs pc
 
 instance CoreReader WTW where
    readCore = WTW $ liftState readCore

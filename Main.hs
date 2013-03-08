@@ -20,7 +20,7 @@ worldPath = progDirPath ++ "/world"
 commit :: RepoWriter m => [File] -> m (Commit Hash)
 commit fs = do
     (_, eph) <- readRepo
-    com <- addCommit' fs (headC eph)
+    com <- addCommit fs (headC eph)
     return com
 
 -- Output the head commit and all other commits.

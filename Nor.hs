@@ -98,4 +98,4 @@ parallelPatchesToCommit lca patches pc= do
     lcaFiles <- getFilesForCom lca
     let sPatches = sequenceParallelPatches patches
     let newFiles = applyPatches sPatches lcaFiles
-    addCommit' newFiles pc
+    addCommit newFiles pc
