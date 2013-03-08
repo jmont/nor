@@ -58,6 +58,12 @@ instance RepoWriter RW where
     updateHead com = RW $ \eph -> return ((),Ephemera com (toRebase eph))
     updateToR toR = RW $ \eph -> return ((),Ephemera (headC eph) toR)
 
+getHC :: RepoReader m => m (Commit Hash)
+getHC = liftM (headC . snd) readRepo
+
+getToR :: ReapoReader m => m ([Commit Hash])
+getToR = LiftM (toRebase . snd) readRepo
+
 -- All the information in the repository.
 -- An append-only Core, and a changing Ephemera.
 type Repo = (Core, Ephemera)
