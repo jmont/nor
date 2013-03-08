@@ -64,9 +64,6 @@ instance WorkingTreeWriter WTW where
       where deleteFiles     = WTW $ \_ -> return ((),FS Set.empty [])
             restoreFiles fs = WTW $ \_ -> return ((),FS (Set.fromList (map path fs)) fs)
 
-liftState :: Monad m => m a -> b -> m (a,b)
-liftState m s = m >>= (\a -> return (a,s))
-
 instance RepoWriter WTW where
     updateHead com = WTW $ liftState $ updateHead com
     updateToR  toR = WTW $ liftState $ updateToR toR

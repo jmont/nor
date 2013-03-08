@@ -6,6 +6,7 @@ module Repo
   , RepoReader(..)
   , RepoWriter(..)
   , writeRepo
+  , liftState
   )
 where
 import Control.Applicative
@@ -24,6 +25,9 @@ class (CoreExtender m, RepoReader m) => RepoWriter m where
 
 data RR a = RR { rr :: Repo -> a }
 data RW a = RW { wr :: CoreExtender m => Ephemera -> m (a, Ephemera) }
+
+liftState :: Monad m => m a -> b -> m (a,b)
+liftState m s = m >>= (\a -> return (a,s))
 
 instance Monad RR where
     return a = RR $ const a
@@ -44,10 +48,8 @@ instance CoreReader RW where
 
 -- Additionaly updates the head commit
 instance CoreExtender RW where
-    addCommit' fs pc = RW $ \eph -> addCommit' fs pc >>= (\com -> return (com,Ephemera com (toRebase eph)))
-    --cxtoww (addCommit' fs pc) >>= (\com -> updateHead com >> return com)
-    --  where cxtoww :: CX a -> RW a
-    --        cxtoww cx = RW $ \(core,eph) -> let (a,core') = (xc cx) core in (a,(core',eph))
+    addCommit' fs pc = RW (liftState (addCommit' fs pc)) >>=
+                       (\com -> updateHead com >> return com)
 
 instance RepoReader RW where
     readRepo = RW $ \eph -> readCore >>= (\core -> return ((core,eph), eph))
