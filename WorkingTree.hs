@@ -6,6 +6,7 @@ module WorkingTree
   , readFs
   , trackFile
   , checkoutCom
+  , applyFileTrans
   )
 where
 
@@ -36,10 +37,11 @@ data WTR a = WTR { rwt :: WorkingTree -> a }
 class RepoReader m => WorkingTreeReader m where
     readFs :: m [File]
 
-
 class (RepoWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
     trackFile :: FilePath -> m ()
     checkoutCom :: Commit Hash -> m ()
+    -- Does this expose too much?
+    applyFileTrans :: ([File] -> [File]) -> m ()
 
 instance Monad WTR where
     return a = WTR $ const a
@@ -59,10 +61,15 @@ instance CoreReader WTR where
     readCore = WTR $ fst . fst
 
 instance WorkingTreeWriter WTW where
-    trackFile path = WTW $ \(FS tpaths cfs) -> return ((),FS (Set.insert path tpaths) cfs)
-    checkoutCom com = deleteFiles >> updateHead com >> getFilesForCom com >>= restoreFiles
+    trackFile path = WTW $ \(FS tpaths cfs) ->
+       return ((),FS (Set.insert path tpaths) cfs)
+    checkoutCom com = deleteFiles >> updateHead com >>
+                      getFilesForCom com >>= restoreFiles
       where deleteFiles     = WTW $ \_ -> return ((),FS Set.empty [])
-            restoreFiles fs = WTW $ \_ -> return ((),FS (Set.fromList (map path fs)) fs)
+            restoreFiles fs = WTW $ \_ ->
+                return ((),FS (Set.fromList (map path fs)) fs)
+    applyFileTrans fsTran = WTW $ \(FS tpaths cfs) ->
+       return $ ((),FS tpaths (fsTran cfs))
 
 instance RepoWriter WTW where
     updateHead com = WTW $ liftState $ updateHead com
