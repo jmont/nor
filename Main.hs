@@ -76,7 +76,7 @@ dispatch "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
         add' (n:ns) = trackFile n >> add' ns
 dispatch "tree" [] = tree
 dispatch "files" [h] = files h >>= return . show
-dispatch "checkout" [h] = commitById' (O.hexToHash h) >>= (\com -> changeHeadTo com >> return (show com))
+dispatch "checkout" [h] = commitById' (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
 dispatch _ _ = error "Invlaid command"
 
 main :: IO ()

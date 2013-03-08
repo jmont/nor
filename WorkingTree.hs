@@ -5,7 +5,7 @@ module WorkingTree
   , runWorkingTree
   , readFs
   , trackFile
-  , changeHeadTo
+  , checkoutCom
   )
 where
 
@@ -39,7 +39,7 @@ class RepoReader m => WorkingTreeReader m where
 
 class (RepoWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
     trackFile :: FilePath -> m ()
-    changeHeadTo :: Commit Hash -> m ()
+    checkoutCom :: Commit Hash -> m ()
 
 instance Monad WTR where
     return a = WTR $ const a
@@ -60,7 +60,7 @@ instance CoreReader WTR where
 
 instance WorkingTreeWriter WTW where
     trackFile path = WTW $ \(FS tpaths cfs) -> return ((),FS (Set.insert path tpaths) cfs)
-    changeHeadTo com = deleteFiles >> updateHead com >> getFilesForCom com >>= restoreFiles
+    checkoutCom com = deleteFiles >> updateHead com >> getFilesForCom com >>= restoreFiles
       where deleteFiles     = WTW $ \_ -> return ((),FS Set.empty [])
             restoreFiles fs = WTW $ \_ -> return ((),FS (Set.fromList (map path fs)) fs)
 
