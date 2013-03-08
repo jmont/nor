@@ -10,8 +10,22 @@ import Control.Monad
 import Core
 import ObjectStore
 import Patch
+import Repo
+import WorkingTree
 
 type ResolvedConflicts = ParallelPatches
+
+data Outcome = Succ | Conf
+
+rebaseStep :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
+              ([Conflict ParallelPatches] -> ParallelPatches -> m ()) -> m Outcome
+rebaseStep _ [] _ = return Succ
+rebaseStep hc (toR:toRs) applyConf = do
+    lca <- getLca hc toR
+    (noConfs, confs) <- mergeCommit hc toR lca
+    if null confs
+      then parallelPatchesToCommit lca noConfs hc >>= updateHead >> return Succ
+      else applyConf confs noConfs >> return Conf
 
 getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
 getLca ca cb = do
