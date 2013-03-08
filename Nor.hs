@@ -17,15 +17,35 @@ type ResolvedConflicts = ParallelPatches
 
 data Outcome = Succ | Conf
 
-rebaseStep :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
-              ([Conflict ParallelPatches] -> ParallelPatches -> m ()) -> m Outcome
-rebaseStep _ [] _ = return Succ
-rebaseStep hc (toR:toRs) applyConf = do
+applyViewableConfs :: WorkingTreeWriter m => Commit Hash ->
+                      [Conflict ParallelPatches] -> ParallelPatches -> m ()
+applyViewableConfs lca confs noConfs =
+  let conflictPatches = map conflictAsPatch confs
+      allPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
+  in getHC >>= (\com -> checkoutCom lca >>
+     applyFileTrans (applyPatches allPatches) >> updateHead com)
+
+getHC :: RepoReader m => m (Commit Hash)
+getHC = liftM (headC . snd) readRepo
+
+--Norman had [Commit Hash] for toRs but its one step, so why need?
+rebaseStep :: WorkingTreeWriter m => Commit Hash -> Commit Hash ->
+            (Commit Hash -> [Conflict ParallelPatches] -> ParallelPatches -> m ())
+            -> m Outcome
+rebaseStep hc toR applyConf = do
     lca <- getLca hc toR
     (noConfs, confs) <- mergeCommit hc toR lca
     if null confs
       then parallelPatchesToCommit lca noConfs hc >>= updateHead >> return Succ
-      else applyConf confs noConfs >> return Conf
+      else applyConf lca confs noConfs >> return Conf
+
+--Norman had (Either () Conflict), not sure why
+rebase :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
+          m (Either () ())
+rebase hc [] = return $ Left ()
+rebase hc (toR:toRs) = rebaseStep hc toR applyViewableConfs >>= rebase'
+  where rebase' Succ = getHC >>= (\hc' -> rebase hc' toRs)
+        rebase' Conf = return $ Right ()
 
 getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
 getLca ca cb = do

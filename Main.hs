@@ -37,6 +37,13 @@ files hh = do
     files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
+startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
+startRebase toC = do
+   fromC <- getHC
+   lca <- upStreamCom fromC toC
+   toRs = liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
+   updateToR toRs >> error "now go into rebase here?"
+
 -- On the commit corresponding to the specified hash, replay commits
 -- between the least common ancestor of the head and the commit.
 --rebase :: World -> String -> IO World
