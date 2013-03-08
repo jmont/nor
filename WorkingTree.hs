@@ -1,5 +1,12 @@
 {-# LANGUAGE Rank2Types #-}
 module WorkingTree
+  ( WorkingTreeReader
+  , WorkingTreeWriter
+  , runWorkingTree
+  , readFs
+  , trackFile
+  , changeHeadTo
+  )
 where
 
 import Control.Monad

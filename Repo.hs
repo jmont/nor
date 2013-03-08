@@ -1,5 +1,12 @@
 {-# LANGUAGE Rank2Types #-}
 module Repo
+  ( Repo
+  , Ephemera(..)
+  , initRepo
+  , RepoReader(..)
+  , RepoWriter(..)
+  , writeRepo
+  )
 where
 import Control.Applicative
 import Data.Serialize
@@ -49,8 +56,8 @@ instance RepoWriter RW where
     updateHead com = RW $ \eph -> return ((),Ephemera com (toRebase eph))
     updateToR toR = RW $ \eph -> return ((),Ephemera (headC eph) toR)
 
--- All the information in the repository. An append-only Core, and a changing
--- Ephemera.
+-- All the information in the repository.
+-- An append-only Core, and a changing Ephemera.
 type Repo = (Core, Ephemera)
 
 -- The changing part of the repository, allows the repository to switch states.
@@ -64,14 +71,12 @@ instance Serialize Ephemera where
    put (Ephemera h toR) = put h >> put toR
    get = Ephemera <$> get <*> get
 
-getHead :: RepoReader m => m (Commit Hash)
-getHead = readRepo >>= (\(_,eph) -> return $ headC eph)
-
 -- An "empty" Repo with a single empty Commit as the head.
 initRepo :: Repo
 initRepo = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
+-- Lifts Repo Writer into IO
 writeRepo :: RW a -> Repo -> IO (a,Repo)
 writeRepo (RW f) (c,eph) = do
     ((a,eph'),c') <- coreToIO (f eph) c

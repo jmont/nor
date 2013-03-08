@@ -54,8 +54,7 @@ instance CoreReader CR where
 instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
---Order does matter (sort or set?)
---gaurantee about parent commit
+--TODO Order does matter (sort or set?)
 instance CoreExtender CX where
   addCommit' fs pc = CX $ \(cs, os) ->
     let (hs, os') = addObjects os fs
@@ -94,5 +93,6 @@ initCore :: Core
 initCore = let initC = Commit Nothing [] $ Hash (hash (encode ""))
            in (Set.singleton initC, mkEmptyOS)
 
+-- Lifts Core Extender into IO
 coreToIO :: CX a -> Core -> IO (a,Core)
 coreToIO (CX f) c = return $ f c
