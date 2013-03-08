@@ -1,87 +1,29 @@
 module Nor where
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
 import Crypto.Hash.SHA1 (hash)
 import qualified Data.ByteString as BS
-import qualified Control.Monad.State as S
+import Control.Monad
 
 import Core
 import ObjectStore
 import Patch
 
 type ResolvedConflicts = ParallelPatches
-data RebaseRes = Succ { core :: Core
-                      , newHead :: Commit Hash }
-               | Conf { core :: Core
-                      , newHead :: Commit Hash
-                      , cConfs :: [Conflict ParallelPatches]
-                      , cNoConfs :: ParallelPatches
-                      , ctoRebas :: [Commit Hash]
-                      , cLca :: Commit Hash}
-                      deriving (Show)
 
-rebaseStart :: Core -> Commit Hash -> Commit Hash -> RebaseRes
-rebaseStart core@(cs,_) fromC toC =
-   let lca = getLca cs fromC toC
-       toRs = reverse $ takeWhile (/= lca) (ancestorList cs fromC)
-   in rebaseStep core toC toRs
+getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
+getLca ca cb = do
+   ancSetA <- liftM Set.fromList (ancestorList ca)
+   ancB <- ancestorList cb
+   return (foldr (\a z -> if Set.member a ancSetA then a else z)
+      (error "No LCA") ancB)
 
--- the following functions are pure and can have QC properties
-rebaseStep :: Core -> Commit Hash -> [Commit Hash] -> RebaseRes
-rebaseStep core hc [] = Succ core hc
-rebaseStep core@(cs,os) hc (tor:tors) =
-    let lca = getLca cs hc tor
-        (noConfs, confs) = mergeCommit os hc tor lca
-    in if null confs
-        then
-            let stateWithCommit = parallelPatchesToCommit lca noConfs (cid hc)
-                (head',core') = S.runState stateWithCommit core
-            in rebaseStep core' head' tors
-        else
-            Conf core hc confs noConfs (tor:tors) lca -- KEEP tor when Conf
-
-resolve :: Core -> Commit Hash -> ResolvedConflicts ->
-           [Commit Hash] -> Commit Hash -> RebaseRes
-resolve core hc rconfs toRs lca =
-  let stateWithCommit = parallelPatchesToCommit lca rconfs (cid hc)
-      (head',core') = S.runState stateWithCommit core
-  in rebaseStep core' head' toRs
-
--- We expect toRs to not have been peeled off yet, creating an implicit commit
--- for the head of the torebase list
-resolveWithFiles :: Core -> Commit Hash -> [File] -> [Commit Hash] -> RebaseRes
-resolveWithFiles (core@(_,_os)) hc newFiles (_toR:toRs) =
-    let (newHead,newCore) = S.runState (addCommit newFiles (cid hc)) core
-    in rebaseStep newCore newHead toRs
-resolveWithFiles _ _ _ [] = unimp "resolve with empty commit list"
-
-unimp :: String -> a 
-unimp s = error ("Not implemented: " ++ s)
-
-addCommit :: [File] -> Hash -> S.State Core (Commit Hash)
-addCommit fs pcid = S.state (\(cs, os) ->
-    let (hs, os') = addObjects os fs
-        c' = Commit (Just pcid) hs $ mkCommitHash (pcid:hs)
-    in (c', (Set.insert c' cs, os')))
-    where mkCommitHash :: [Hash] -> Hash
-          mkCommitHash = Hash . hash . BS.concat . map getHash
-
-commitById :: Set.Set (Commit Hash) -> Hash -> Commit Hash
-commitById commitSet id =
-    foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
-          (error "Commit not found") (Set.elems commitSet)
-
-getLca :: Set.Set (Commit Hash) -> Commit Hash -> Commit Hash -> Commit Hash
-getLca cs ca cb =
-   let ancSeta = Set.fromList (ancestorList cs ca)
-   in foldr (\a z -> if Set.member a ancSeta then a else z)
-      (error "No LCA") (ancestorList cs cb)
-
-ancestorList :: Set.Set (Commit Hash) -> Commit Hash -> [Commit Hash]
-ancestorList _ c1@(Commit Nothing _ _) = [c1]
-ancestorList cs c1@(Commit (Just pid) _ _) =
-    c1 : ancestorList cs (commitById cs pid)
+ancestorList :: CoreReader m => Commit Hash -> m [Commit Hash]
+ancestorList c1@(Commit Nothing _ _)    = return [c1]
+ancestorList c1@(Commit (Just pid) _ _) = readCore >>= (\(cs,_) ->
+   liftM (c1 :) (commitById' pid >>= ancestorList))
 
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =
@@ -104,15 +46,15 @@ patchFromFiles fas fbs =
           alterFun _ _ = error "Can't Happen"
 
 --Return a patch from commit a to commit b
-patchFromCommits :: ObjectStore File -> Commit Hash -> Commit Hash -> ParallelPatches
-patchFromCommits os ca cb =
-      let hashesA = Set.fromList (cContents ca)
-          hashesB = Set.fromList (cContents cb)
+patchFromCommits :: CoreReader m => Commit Hash -> Commit Hash -> m ParallelPatches
+patchFromCommits ca cb = readCore >>= (\(_,os) -> return
+     (let hashesA = cContents ca
+          hashesB = cContents cb
           onlyA = hashesA Set.\\ hashesB
           onlyB = hashesB Set.\\ hashesA
           filesOnlyA = getFilesForSet os onlyA
           filesOnlyB = getFilesForSet os onlyB
-          in patchFromFiles filesOnlyA filesOnlyB
+      in patchFromFiles filesOnlyA filesOnlyB))
    where getFilesForSet os hashesSet =
           fromJust $ mapM (getObject os) (Set.toList hashesSet)
 
@@ -143,21 +85,17 @@ applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
 applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
-mergeCommit :: ObjectStore File -> Commit Hash -> Commit Hash -> Commit Hash ->
-               (ParallelPatches,[Conflict ParallelPatches])
-mergeCommit os ca cb lca =
-      let patchTo = patchFromCommits os
-          patchA = lca `patchTo` ca
-          patchB = lca `patchTo` cb
-      in patchA >||< patchB
+mergeCommit :: CoreReader m => Commit Hash -> Commit Hash -> Commit Hash ->
+               m (ParallelPatches,[Conflict ParallelPatches])
+mergeCommit ca cb lca = do
+     patchA <- patchFromCommits lca ca
+     patchB <- patchFromCommits lca cb
+     return $ patchA >||< patchB
 
-parallelPatchesToCommit :: Commit Hash -> ParallelPatches -> Hash ->
-                           S.State Core (Commit Hash)
-parallelPatchesToCommit lca patches pcid = do
-    c@(_, os) <- S.get
-    let lcaFiles = fromJust $ mapM (getObject os) (cContents lca)
+parallelPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
+                           Commit Hash -> m (Commit Hash)
+parallelPatchesToCommit lca patches pc= do
+    lcaFiles <- getFilesForCom lca
     let sPatches = sequenceParallelPatches patches
     let newFiles = applyPatches sPatches lcaFiles
-    let (a, c') = S.runState (addCommit newFiles pcid) c
-    S.put c'
-    return a
+    addCommit' newFiles pc
