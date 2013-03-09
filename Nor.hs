@@ -13,33 +13,51 @@ import WorkingTree
 
 type ResolvedConflicts = ParallelPatches
 
-data Outcome = Succ (Commit Hash) | Conf ([Conflict ParallelPatches],ParallelPatches)
+data Outcome = Succ | Conf ([Conflict ParallelPatches],ParallelPatches)
 
-applyViewableConfs :: WorkingTreeWriter m => Commit Hash ->
-                      [Conflict ParallelPatches] -> ParallelPatches -> m ()
-applyViewableConfs lca confs noConfs =
+applyViewableConfs :: WorkingTreeWriter m => [Conflict ParallelPatches] ->
+                      ParallelPatches -> m ()
+applyViewableConfs confs noConfs =
   let conflictPatches = map conflictAsPatch confs
       allPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
-  in getHC >>= (\com -> checkoutCom lca >>
-     applyFileTrans (applyPatches allPatches) >> updateHead com)
+  in applyFileTrans (applyPatches allPatches)
 
 --This could also be used for "real" merge, first commmit becomes parent if Succ
-rebaseStep :: CoreExtender m => Commit Hash -> Commit Hash -> m Outcome
-rebaseStep c1 c2 = do
+mergeCommits :: WorkingTreeWriter m => Commit Hash -> Commit Hash -> m Outcome
+mergeCommits c1 c2 = do
     lca <- getLca c1 c2
-    (noConfs, confs) <- mergeCommit c1 c2 lca
+    (noConfs, confs) <- getMergePatches c1 c2 lca
+    --error $ show noConfs ++ " <-noConfs Confs-> " ++ show confs ++ " | "
+     --       ++ show c1 ++ "<-c1 c2->" ++ show c2
     if null confs
-        then liftM Succ $ parallelPatchesToCommit lca noConfs c1
-        else return $ Conf (confs,noConfs)
---
-----Norman had (Either () Conflict), not sure why
---rebase :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
---          m (Either () ())
---rebase hc [] = return $ Left ()
---rebase hc (toR:toRs) = rebaseStep hc toR applyViewableConfs >>= rebase'
---  where rebase' Succ = getHC >>= (\hc' -> rebase hc' toRs)
---        rebase' Conf = return $ Right ()
---
+        then pPatchesToCommit lca noConfs c1 >>= checkoutCom >> return Succ
+        else checkoutCom lca >> return (Conf (confs,noConfs))
+
+startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
+startRebase toC = do
+    fromC <- getHC
+    lca <- getLca fromC toC
+    toRs <- liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
+    checkoutCom toC
+    updateToRs toRs
+    rebase
+
+rebase :: WorkingTreeWriter m => m (Either () ())
+rebase = do
+    fromC <- getHC
+    toRs <- getToRs
+    rebase' fromC toRs
+
+rebase' :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
+                                  m (Either () ())
+rebase' _ [] = return $ Left () -- TODO is this bad? should this be peel?
+rebase' hc (toR:toRs) = updateToRs toRs >> mergeCommits hc toR >>= rebase''
+    where rebase'' Succ = rebase' hc toRs
+          rebase'' (Conf (confs,noConfs)) = do
+              tfs <- getFilesForCom toR
+              mapM_ (trackFile . path) tfs -- TODO right?
+              applyViewableConfs confs noConfs >> return (Right ())
+
 getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
 getLca ca cb = do
    ancSetA <- liftM Set.fromList (ancestorList ca)
@@ -47,10 +65,11 @@ getLca ca cb = do
    return (foldr (\a z -> if Set.member a ancSetA then a else z)
       (error "No LCA") ancB)
 
+-- youngest to oldest order
 ancestorList :: CoreReader m => Commit Hash -> m [Commit Hash]
 ancestorList c1@(Commit Nothing _ _)    = return [c1]
-ancestorList c1@(Commit (Just pid) _ _) = readCore >>= (\(cs,_) ->
-   liftM (c1 :) (commitById' pid >>= ancestorList))
+ancestorList c1@(Commit (Just pid) _ _) = readCore >>
+   liftM (c1 :) (commitById pid >>= ancestorList)
 
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =
@@ -112,16 +131,16 @@ applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
 applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
 
-mergeCommit :: CoreReader m => Commit Hash -> Commit Hash -> Commit Hash ->
+getMergePatches :: CoreReader m => Commit Hash -> Commit Hash -> Commit Hash ->
                m (ParallelPatches,[Conflict ParallelPatches])
-mergeCommit ca cb lca = do
+getMergePatches ca cb lca = do
      patchA <- patchFromCommits lca ca
      patchB <- patchFromCommits lca cb
      return $ patchA >||< patchB
 
-parallelPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
+pPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
                            Commit Hash -> m (Commit Hash)
-parallelPatchesToCommit lca patches pc= do
+pPatchesToCommit lca patches pc= do
     lcaFiles <- getFilesForCom lca
     let sPatches = sequenceParallelPatches patches
     let newFiles = applyPatches sPatches lcaFiles

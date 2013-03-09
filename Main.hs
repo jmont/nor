@@ -34,58 +34,38 @@ tree = do
 files :: CoreReader m => String -> m [String]
 files hh = do
     let h = O.hexToHash hh
-    com <- commitById' h
+    com <- commitById h
     files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
-startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
-startRebase toC = do
-   fromC <- getHC
-   lca <- getLca fromC toC
-   toRs <- liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
-   updateToR toRs >> error "now go into rebase here?"
+runRebase :: WorkingTreeWriter m => String -> m String
+runRebase hh = do
+    let toHash = O.hexToHash hh
+    res <- (commitById toHash >>= startRebase)
+    case res of Left () -> liftM ("Updated to " ++) (getHC >>= (return . show))
+                Right () -> return "Conflicts! Fix them & run rebase --continue"
 
--- On the commit corresponding to the specified hash, replay commits
--- between the least common ancestor of the head and the commit.
---rebase :: World -> String -> IO World
---rebase (core@(_,os), eph) "--continue" = do
---   let toPaths = getPaths (headC eph)
---   let fromPaths = getPaths . head . toRebase $ eph
---   newFiles <- mapM getFile $ List.nub $ fromPaths ++ toPaths
---   rebaseStop $ resolveWithFiles core (headC eph) newFiles (toRebase eph)
---   where getPaths :: Commit Hash -> [Path]
---         getPaths c =
---            let Just files = O.getObjects os (cContents c)
---            in map path files
---rebase (core@(comSet,_), eph) hh =
---   let toHash = O.hexToHash hh
---       toCom = commitById comSet toHash
---   in rebaseStop $ rebaseStart core (headC eph) toCom
-
---rebaseStop :: RebaseRes -> IO World
---rebaseStop (Succ core head) =
---    let w' = (core, Ephemera head [])
---    in checkout w' ((show . cid) head)
---rebaseStop (Conf (core@(_,os)) head confs noConfs toRs lca) =
---    let conflictPatches = map conflictAsPatch confs
---        Just files = mapM (O.getObject os) (cContents lca)
---        combinedPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
---        w = (core, Ephemera head toRs)
---    in do
---      _ <- checkout w (show (cid lca)) -- replace fs with lca's files
---      restoreFiles $ applyPatches combinedPatches files
---      putStrLn "Conflicts! Fix them and run nor rebase --continue"
---      return w
+rebaseContinue :: WorkingTreeWriter m => m String
+rebaseContinue = readFs >>= commit >> rebase >>= (\res ->
+    case res of Left () -> liftM ("Updated to " ++) (getHC >>= (return . show))
+                Right () -> return "Conflicts! Fix them & run rebase --continue")
 
 dispatch :: WorkingTreeWriter m => String -> [String] -> m String
-dispatch "commit" [] = readFs >>= commit >>= return . show
-dispatch "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
+dispatch "rebase" ["--continue"] = rebaseContinue
+dispatch cmd args = liftM null getToRs >>= \res -> if not res
+                                                   then return "Finish rebase!"
+                                                   else dispatch' cmd args
+
+dispatch' :: WorkingTreeWriter m => String -> [String] -> m String
+dispatch' "commit" [] = readFs >>= commit >>= return . show
+dispatch' "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
   where add' [] = return ()
         add' (n:ns) = trackFile n >> add' ns
-dispatch "tree" [] = tree
-dispatch "files" [h] = files h >>= return . show
-dispatch "checkout" [h] = commitById' (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
-dispatch _ _ = error "Invlaid command"
+dispatch' "tree" [] = tree
+dispatch' "files" [h] = files h >>= return . show
+dispatch' "rebase" [h] = runRebase h
+dispatch' "checkout" [h] = commitById (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
+dispatch' _ _ = error "Invlaid command"
 
 main :: IO ()
 main = do

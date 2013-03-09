@@ -5,7 +5,7 @@ module Core
   , CoreReader(..), CoreExtender(..)
   , initCore
   , getFilesForCom
-  , commitById'
+  , commitById
   , coreToIO
   )
 where
@@ -85,8 +85,8 @@ getFilesForCom com = do
   (_,os) <- readCore
   return $ Maybe.mapMaybe (getObject os) (Set.toList (cContents com))
 
-commitById' :: CoreReader m => Hash -> m (Commit Hash)
-commitById' id = readCore >>= (\(commitSet,_) -> return
+commitById :: CoreReader m => Hash -> m (Commit Hash)
+commitById id = readCore >>= (\(commitSet,_) -> return
     (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
            (error "Commit not found") (Set.elems commitSet)))
 

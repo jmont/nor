@@ -22,7 +22,7 @@ import Core
 import ObjectStore
 import Repo
 
-data FileSystem = FS { trackedPaths :: Set.Set FilePath
+data FileSystem = FS { _trackedPaths :: Set.Set FilePath
                      , currFiles :: [File] }
 
 instance Serialize FileSystem where
@@ -73,7 +73,7 @@ instance WorkingTreeWriter WTW where
 
 instance RepoWriter WTW where
     updateHead com = WTW $ liftState $ updateHead com
-    updateToR  toR = WTW $ liftState $ updateToR toR
+    updateToRs toRs = WTW $ liftState $ updateToRs toRs
 
 instance WorkingTreeReader WTW where
     readFs = WTW $ \fs -> return (currFiles fs, fs)

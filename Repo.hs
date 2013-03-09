@@ -8,7 +8,7 @@ module Repo
   , writeRepo
   , liftState
   , getHC 
-  , getToR
+  , getToRs
   )
 where
 import Control.Applicative
@@ -24,7 +24,7 @@ class CoreReader m => RepoReader m where
 
 class (CoreExtender m, RepoReader m) => RepoWriter m where
     updateHead :: Commit Hash -> m ()
-    updateToR :: [Commit Hash] -> m ()
+    updateToRs :: [Commit Hash] -> m ()
 
 data RR a = RR { rr :: Repo -> a }
 data RW a = RW { wr :: CoreExtender m => Ephemera -> m (a, Ephemera) }
@@ -59,13 +59,13 @@ instance RepoReader RW where
 
 instance RepoWriter RW where
     updateHead com = RW $ \eph -> return ((),Ephemera com (toRebase eph))
-    updateToR toR = RW $ \eph -> return ((),Ephemera (headC eph) toR)
+    updateToRs toRs = RW $ \eph -> return ((),Ephemera (headC eph) toRs)
 
 getHC :: RepoReader m => m (Commit Hash)
 getHC = liftM (headC . snd) readRepo
 
-getToR :: RepoReader m => m ([Commit Hash])
-getToR = liftM (toRebase . snd) readRepo
+getToRs :: RepoReader m => m ([Commit Hash])
+getToRs = liftM (toRebase . snd) readRepo
 
 -- All the information in the repository.
 -- An append-only Core, and a changing Ephemera.
