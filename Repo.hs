@@ -7,9 +7,12 @@ module Repo
   , RepoWriter(..)
   , writeRepo
   , liftState
+  , getHC 
+  , getToR
   )
 where
 import Control.Applicative
+import Control.Monad
 import Data.Serialize
 import qualified Data.Set as Set
 
@@ -61,8 +64,8 @@ instance RepoWriter RW where
 getHC :: RepoReader m => m (Commit Hash)
 getHC = liftM (headC . snd) readRepo
 
-getToR :: ReapoReader m => m ([Commit Hash])
-getToR = LiftM (toRebase . snd) readRepo
+getToR :: RepoReader m => m ([Commit Hash])
+getToR = liftM (toRebase . snd) readRepo
 
 -- All the information in the repository.
 -- An append-only Core, and a changing Ephemera.

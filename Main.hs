@@ -4,9 +4,10 @@ import qualified Data.Set as Set
 import qualified ObjectStore as O
 
 import Core
-import WorkingTree
-import Repo
+import Nor
 import ObjectStore
+import Repo
+import WorkingTree
 
 -- Location in which to save program data.
 progDirPath :: String
@@ -40,8 +41,8 @@ files hh = do
 startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
 startRebase toC = do
    fromC <- getHC
-   lca <- upStreamCom fromC toC
-   toRs = liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
+   lca <- getLca fromC toC
+   toRs <- liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
    updateToR toRs >> error "now go into rebase here?"
 
 -- On the commit corresponding to the specified hash, replay commits

@@ -3,8 +3,6 @@ module Nor where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
-import Crypto.Hash.SHA1 (hash)
-import qualified Data.ByteString as BS
 import Control.Monad
 
 import Core
@@ -25,26 +23,23 @@ applyViewableConfs lca confs noConfs =
   in getHC >>= (\com -> checkoutCom lca >>
      applyFileTrans (applyPatches allPatches) >> updateHead com)
 
-getHC :: RepoReader m => m (Commit Hash)
-getHC = liftM (headC . snd) readRepo
-
 --This could also be used for "real" merge, first commmit becomes parent if Succ
 rebaseStep :: CoreExtender m => Commit Hash -> Commit Hash -> m Outcome
-rebaseStep c1 c2 applyConf = do
+rebaseStep c1 c2 = do
     lca <- getLca c1 c2
     (noConfs, confs) <- mergeCommit c1 c2 lca
     if null confs
-      then return $ parallelPatchesToCommit lca noConfs c1
-      else return $ Conf (confs,noConfs)
-
---Norman had (Either () Conflict), not sure why
-rebase :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
-          m (Either () ())
-rebase hc [] = return $ Left ()
-rebase hc (toR:toRs) = rebaseStep hc toR applyViewableConfs >>= rebase'
-  where rebase' Succ = getHC >>= (\hc' -> rebase hc' toRs)
-        rebase' Conf = return $ Right ()
-
+        then liftM Succ $ parallelPatchesToCommit lca noConfs c1
+        else return $ Conf (confs,noConfs)
+--
+----Norman had (Either () Conflict), not sure why
+--rebase :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
+--          m (Either () ())
+--rebase hc [] = return $ Left ()
+--rebase hc (toR:toRs) = rebaseStep hc toR applyViewableConfs >>= rebase'
+--  where rebase' Succ = getHC >>= (\hc' -> rebase hc' toRs)
+--        rebase' Conf = return $ Right ()
+--
 getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
 getLca ca cb = do
    ancSetA <- liftM Set.fromList (ancestorList ca)
