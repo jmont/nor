@@ -15,7 +15,7 @@ import WorkingTree
 
 type ResolvedConflicts = ParallelPatches
 
-data Outcome = Succ | Conf
+data Outcome = Succ (Commit Hash) | Conf ([Conflict ParallelPatches],ParallelPatches)
 
 applyViewableConfs :: WorkingTreeWriter m => Commit Hash ->
                       [Conflict ParallelPatches] -> ParallelPatches -> m ()
@@ -28,16 +28,14 @@ applyViewableConfs lca confs noConfs =
 getHC :: RepoReader m => m (Commit Hash)
 getHC = liftM (headC . snd) readRepo
 
---Norman had [Commit Hash] for toRs but its one step, so why need?
-rebaseStep :: WorkingTreeWriter m => Commit Hash -> Commit Hash ->
-            (Commit Hash -> [Conflict ParallelPatches] -> ParallelPatches -> m ())
-            -> m Outcome
-rebaseStep hc toR applyConf = do
-    lca <- getLca hc toR
-    (noConfs, confs) <- mergeCommit hc toR lca
+--This could also be used for "real" merge, first commmit becomes parent if Succ
+rebaseStep :: CoreExtender m => Commit Hash -> Commit Hash -> m Outcome
+rebaseStep c1 c2 applyConf = do
+    lca <- getLca c1 c2
+    (noConfs, confs) <- mergeCommit c1 c2 lca
     if null confs
-      then parallelPatchesToCommit lca noConfs hc >>= updateHead >> return Succ
-      else applyConf lca confs noConfs >> return Conf
+      then return $ parallelPatchesToCommit lca noConfs c1
+      else return $ Conf (confs,noConfs)
 
 --Norman had (Either () Conflict), not sure why
 rebase :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
