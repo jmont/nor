@@ -1,0 +1,6 @@
+Fix rebase from young to old (reverse fast forward)...should do nothing, but creates a dup commit with wrong parent
+When toRs is null on last conflict, users can run any commands
+Merge
+Conflict datatype
+peel toRs
+Better print messages
