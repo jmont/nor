@@ -88,7 +88,7 @@ initRepo = let core@(commitSet,_) = initCore
             in (core,Ephemera (head $ Set.toList commitSet) [])
 
 -- Lifts Repo Writer into IO
-writeRepo :: RW a -> Repo -> IO (a,Repo)
-writeRepo (RW f) (c,eph) = do
+repoToIO :: RW a -> Repo -> IO (a,Repo)
+repoToIO (RW f) (c,eph) = do
     ((a,eph'),c') <- coreToIO (f eph) c
     return (a,(c',eph'))

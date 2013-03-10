@@ -151,7 +151,7 @@ runWorkingTree :: FilePath -> FilePath -> WTW a -> IO a
 runWorkingTree progDirPath worldPath (WTW f) = do
     (w,FS tfs _) <- loadWTree progDirPath worldPath
     files <- getFiles (Set.toList tfs)
-    ((a,fileSys'),world) <- writeRepo (f (FS tfs files)) w
+    ((a,fileSys'),world) <- repoToIO (f (FS tfs files)) w
     deleteFiles files >> restoreFiles (currFiles fileSys')
     rwt (saveWTree worldPath) (world,fileSys')
     return a
