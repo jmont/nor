@@ -14,31 +14,26 @@ import qualified Control.Monad.State as S
 
 import Nor
 import Main
-import qualified ObjectStore as O
+import ObjectStore
 import Core
-import World
+import Repo
 import Patch
+import WorkingTree
 
-data BranchedCore = BC Core (Commit O.Hash) (Commit O.Hash)
+data BranchedCore = BC Core (Commit Hash) (Commit Hash)
     deriving (Show)
 instance Arbitrary BranchedCore where
   arbitrary = do
     f <- arbitrary `suchThat` ((>7) . length . contents)
     ps <- mkGoodPPatches f `suchThat` ((>2) . length)
     split <- choose (1, length ps - 1)
-    let (br1p, br2p) = splitAt split (sort ps)
-    let br1s = sequenceParallelPatches br1p
-    let br2s = sequenceParallelPatches br2p
+    let (br1ps, br2ps) = splitAt split (reverse (sort ps))
     let core@(cs, os) = initCore
-    let (hc, core') = S.runState (addCommit [f] (cid (Set.findMin cs))) core
-    let (branch1, core'') = foldl applyPatchToCore (hc, core') br1s
-    let (branch2, core''') = foldl applyPatchToCore (hc, core'') br2s
+    (hc,core') <- coreToGen (addCommit [f] (Set.findMin cs)) core
+    (branch1, core'')  <- coreToGen (foldM applyPatchToCore hc br1ps) core'
+    (branch2, core''') <- coreToGen (foldM applyPatchToCore hc br2ps) core''
     return $ BC core''' branch1 branch2
-    where applyPatchToCore :: (Commit O.Hash,Core) -> SequentialPatch ->
-                              (Commit O.Hash,Core)
-          applyPatchToCore (hc, core@(_,os)) p =
-              let Just f = mapM (O.getObject os) (cContents hc)
-              in S.runState (addCommit (applyPatch p f) (cid hc)) core
+    where applyPatchToCore com p = pPatchesToCommit com [p] com
 --  shrink (BC (comSet,os) b1 b2)
 --   | parent b1 == parent b2 = []
 --   | otherwise              =
@@ -293,52 +288,45 @@ chooseRight = concatMap (\(Conflict _ p2s) -> p2s)
 identicalConf :: Conflict ParallelPatches -> Bool
 identicalConf (Conflict p1 p2) = p1 == p2
 
-resolveIdenticals :: RebaseRes -> RebaseRes
-resolveIdenticals (konf@(Conf c hc confs noConfs (toR:toRs) lca)) =
-  if all identicalConf confs
-    then resolveIdenticals $ resolve c hc (chooseLeft confs ++ noConfs) toRs lca
-    else konf
-resolveIdenticals succ = succ
+prop_madeTwoBranches :: BranchedCore -> Gen Bool
+prop_madeTwoBranches (BC core b1 b2) = do
+  (bs,_) <- coreToGen getBranches core
+  return (bs == [b1,b2] || bs == [b2,b1])
 
-prop_madeTwoBranches :: BranchedCore -> Bool
-prop_madeTwoBranches (BC core b1 b2) =
-  let bs = getBranches core
-  in bs == [b1,b2] || bs == [b2,b1]
+prop_rebaseEq :: BranchedCore -> Gen Bool
+prop_rebaseEq (BC core b1 b2) = do
+  let wt = ((core,Ephemera b1 []), initFS)
+  (res1,wt1) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
+  (res2,wt2) <- workingTreeToGen (checkoutCom b2 >> startRebase b1) wt
+  case (res1,res2) of
+    (Left (),Left ()) -> do
+        (reb1Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt1
+        (reb2Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt2
+        return $ reb1Files == reb2Files
+    otherwise -> return False
 
-prop_rebaseEq :: BranchedCore -> Bool
-prop_rebaseEq (BC core b1 b2) =
-  case (rebaseStart core b1 b2, rebaseStart core b2 b1) of
-   (Succ (_,os1) hc1, Succ (_,os2) hc2) ->
-      let reb1Files = fromJust $ mapM (O.getObject os1) (cContents hc1)
-          reb2Files = fromJust $ mapM (O.getObject os2) (cContents hc2)
-      in reb1Files == reb2Files
-   _ -> False
+prop_rebaseSucceeds :: BranchedCore -> Gen Bool
+prop_rebaseSucceeds (BC core b1 b2) = do
+  let wt = ((core,Ephemera b1 []), initFS)
+  (res,_) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
+  case res of
+    Left ()   -> return True
+    otherwise -> return False
 
-prop_rebaseSucceeds :: BranchedCore -> Bool
-prop_rebaseSucceeds (BC core b1 b2) =
-  case resolveIdenticals (rebaseStart core b1 b2) of
-    Succ _ _ -> True
-    otherwise -> False
-
-prop_rebaseBothSucc :: BranchedCore -> Bool
+prop_rebaseBothSucc :: BranchedCore -> Gen Bool
 prop_rebaseBothSucc (bc@(BC core b1 b2)) =
-  prop_rebaseSucceeds bc && prop_rebaseSucceeds (BC core b2 b1)
+  liftM2 (&&) (prop_rebaseSucceeds bc) (prop_rebaseSucceeds (BC core b2 b1))
 
-failureWorld :: (BranchedCore -> Bool) -> IO BranchedCore
-failureWorld bcProp = do
-  bcs <- sample' arbitrary
-  let Just (BC core b1 b2) = find (not . bcProp) bcs
-  return (BC core b1 b2)
+--failureRepo :: (BranchedCore -> Bool) -> IO BranchedCore
+--failureRepo bcProp = do
+--  bcs <- sample' arbitrary
+--  let Just (BC core b1 b2) = find (not . bcProp) bcs
+--  return (BC core b1 b2)
   --(core, Ephemera b1 [])
 
-testRebaseStart :: World -> RebaseRes
-testRebaseStart (core@(comSet,os),_) =
-  let [com1,com2] = getBranches core
-  in rebaseStart core com1 com2
-
-getBranches :: Core -> [Commit O.Hash]
-getBranches (comSet,_) =
+getBranches :: CoreReader m => m [Commit Hash]
+getBranches = readCore >>= (\(comSet,_) ->
   let parentList = catMaybes $ Set.toList $ Set.map parent comSet
       hashes = Set.toList $ Set.map cid comSet
       branches = hashes \\ parentList
-  in map (commitById comSet) branches
+  in mapM commitById branches)

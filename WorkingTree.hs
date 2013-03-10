@@ -8,6 +8,7 @@ module WorkingTree
   , trackFile
   , checkoutCom
   , applyFileTrans
+  , initFS
   )
 where
 
@@ -138,7 +139,7 @@ loadWTree :: FilePath -> FilePath -> IO WorkingTree
 loadWTree progDirPath worldPath = do
     eitherW <- loadWTree'
     case eitherW of
-        Left _ -> createProgDir progDirPath >> return (initRepo,FS Set.empty [])
+        Left _ -> createProgDir progDirPath >> return (initRepo,initFS)
         Right wtw -> return wtw
     where loadWTree' :: IO (Either String WorkingTree)
           loadWTree' = E.catch
@@ -148,6 +149,9 @@ loadWTree progDirPath worldPath = do
                   return $ decode encodedW)
               (\(e) -> hPrint stderr (e :: E.IOException) >>
                   return (Left "No Repo found."))
+
+initFS :: FileSystem
+initFS = FS Set.empty []
 
 runWorkingTree :: FilePath -> FilePath -> WTW a -> IO a
 runWorkingTree progDirPath worldPath (WTW f) = do
