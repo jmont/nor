@@ -34,10 +34,28 @@ instance Arbitrary BranchedCore where
     (branch2, core''') <- coreToGen (foldM applyPatchToCore hc br2ps) core''
     return $ BC core''' branch1 branch2
     where applyPatchToCore com p = pPatchesToCommit com [p] com
---  shrink (BC (comSet,os) b1 b2)
---   | parent b1 == parent b2 = []
---   | otherwise              =
---      (BC (comSet,os) b1 (parent b2)) : shrink (BC (comSet,os) (parent b2) b1)
+  shrink (BC _ (Commit Nothing _ _) (Commit Nothing _ _)) = []
+  shrink (BC (comSet,os) (b1@(Commit Nothing _ _)) (Commit (Just pcid2) _ _)) =
+      let pc = commitById' comSet pcid2
+          bc = BC (comSet,os) b1 pc
+      in bc : shrink bc
+  shrink (BC (comSet,os) (Commit (Just pcid1) _ _) (b2@(Commit Nothing _ _))) =
+      let pc = commitById' comSet pcid1
+          bc = BC (comSet,os) pc b2
+      in bc : shrink bc
+  shrink (BC (comSet,os) (b1@(Commit (Just pcid1) _ _)) (b2@(Commit (Just pcid2) _ _)))
+   | pcid1 == pcid2 = []
+   | otherwise      =
+       let pc1 = commitById' comSet pcid1
+           pc2 = commitById' comSet pcid2
+           bc = BC (comSet,os) b1 pc2
+       in bc : shrink bc
+
+-- Can't use regular commitById because we cant escape the monad
+commitById' :: (Set.Set (Commit Hash)) -> Hash -> Commit Hash
+commitById' commitSet id =
+            (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
+            (error "Commit not found") (Set.elems commitSet))
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
