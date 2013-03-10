@@ -3,6 +3,7 @@ module WorkingTree
   ( WorkingTreeReader
   , WorkingTreeWriter
   , runWorkingTree
+  , workingTreeToGen
   , readFs
   , trackFile
   , checkoutCom
@@ -17,6 +18,7 @@ import Data.Serialize
 import qualified Data.Set as Set
 import System.Directory
 import System.IO
+import Test.QuickCheck.Gen
 
 import Core
 import ObjectStore
@@ -155,3 +157,8 @@ runWorkingTree progDirPath worldPath (WTW f) = do
     deleteFiles files >> restoreFiles (currFiles fileSys')
     rwt (saveWTree worldPath) (world,fileSys')
     return a
+
+workingTreeToGen :: WTW a -> WorkingTree -> Gen (a,WorkingTree)
+workingTreeToGen (WTW f) (w,fs) = do
+    ((a,fs'),w') <- repoToGen (f fs) w
+    return (a,(w',fs'))

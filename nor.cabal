@@ -16,6 +16,7 @@ executable nor
     Diff == 0.3.0,
     cereal,
     bytestring,
-    directory
+    directory,
+    QuickCheck
   ghc-options: -Wall -fno-warn-name-shadowing
 

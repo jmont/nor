@@ -5,9 +5,10 @@ module Repo
   , initRepo
   , RepoReader(..)
   , RepoWriter(..)
-  , writeRepo
+  , repoToIO
+  , repoToGen
   , liftState
-  , getHC 
+  , getHC
   , getToRs
   )
 where
@@ -15,6 +16,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Serialize
 import qualified Data.Set as Set
+import Test.QuickCheck.Gen
 
 import ObjectStore
 import Core
@@ -91,4 +93,9 @@ initRepo = let core@(commitSet,_) = initCore
 repoToIO :: RW a -> Repo -> IO (a,Repo)
 repoToIO (RW f) (c,eph) = do
     ((a,eph'),c') <- coreToIO (f eph) c
+    return (a,(c',eph'))
+
+repoToGen :: RW a -> Repo -> Gen (a,Repo)
+repoToGen (RW f) (c,eph) = do
+    ((a,eph'),c') <- coreToGen (f eph) c
     return (a,(c',eph'))

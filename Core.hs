@@ -7,6 +7,7 @@ module Core
   , getFilesForCom
   , commitById
   , coreToIO
+  , coreToGen
   )
 where
 
@@ -17,6 +18,7 @@ import Data.Serialize
 import qualified Data.Set as Set
 import Crypto.Hash.SHA1 (hash)
 import qualified Data.ByteString as BS
+import Test.QuickCheck.Gen
 
 import ObjectStore
 
@@ -98,3 +100,7 @@ initCore = let initC = Commit Nothing Set.empty $ Hash (hash (encode ""))
 -- Lifts Core Extender into IO
 coreToIO :: CX a -> Core -> IO (a,Core)
 coreToIO (CX f) c = return $ f c
+
+-- Lifts Core Extender into Gen for Quickcheck
+coreToGen :: CX a -> Core -> Gen (a,Core)
+coreToGen (CX f) c = return $ f c
