@@ -31,7 +31,14 @@ mergeCommits c1 c2 = do
      --       ++ show c1 ++ "<-c1 c2->" ++ show c2
     if null confs
         then pPatchesToCommit lca noConfs c1 >>= checkoutCom >> return Succ
-        else checkoutCom lca >> return (Conf (confs,noConfs))
+        else if all identicalConf confs
+                then pPatchesToCommit lca (noConfs ++ chooseLeft confs) c1 >>=
+                     checkoutCom >> return Succ
+             else checkoutCom lca >> return (Conf (confs,noConfs))
+    where chooseLeft :: [Conflict ParallelPatches] -> ResolvedConflicts
+          chooseLeft = concatMap (\(Conflict p1s _) -> p1s)
+          identicalConf :: Conflict ParallelPatches -> Bool
+          identicalConf (Conflict p1 p2) = p1 == p2
 
 startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
 startRebase toC = do
