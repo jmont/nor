@@ -1,4 +1,5 @@
 {-# LANGUAGE Rank2Types #-}
+
 module Repo
   ( Repo
   , Ephemera(..)
@@ -12,6 +13,7 @@ module Repo
   , getToRs
   )
 where
+
 import Control.Applicative
 import Control.Monad
 import Data.Serialize
@@ -27,8 +29,7 @@ liftState m s = m >>= (\a -> return (a,s))
 -- The changing part of the repository, allows the repository to switch states.
 data Ephemera = Ephemera { headC :: Commit Hash-- Current checked-out commit
                          , toRebase :: [Commit Hash]
-                            -- Mid-rebase, the commits that still need to be
-                            -- handled.
+                            -- Mid-rebase, the commits yet to be handled.
                          } deriving Show
 
 instance Serialize Ephemera where
@@ -74,7 +75,7 @@ instance Monad RW where
     (RW m) >>= k = RW $ \eph -> do { (b, eph') <- m eph ; wr (k b) eph' }
 
 instance CoreReader RW where
-    readCore = RW $ \eph -> readCore >>= (\core -> return (core,eph))
+    readCore = RW $ liftState readCore
 
 -- Additionaly updates the head commit
 instance CoreExtender RW where
