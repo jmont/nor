@@ -20,6 +20,8 @@ import Repo
 import Patch
 import WorkingTree
 
+import qualified Data.Map as Map -- For failure testing
+
 data BranchedCore = BC Core (Commit Hash) (Commit Hash)
     deriving (Show,Read)
 instance Arbitrary BranchedCore where
