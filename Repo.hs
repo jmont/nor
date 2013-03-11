@@ -36,7 +36,7 @@ liftState m s = m >>= (\a -> return (a,s))
 
 instance Monad RR where
     return a = RR $ const a
-    (RR r) >>= k = RR $ \world -> rr (k (r world)) world
+    (RR r) >>= k = RR $ \repo -> rr (k (r repo)) repo
 
 instance CoreReader RR where
     readCore = RR $ fst
