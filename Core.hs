@@ -30,12 +30,12 @@ type Core = (Set.Set (Commit Hash), ObjectStore File)
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
-                 } deriving (Show,Eq)
+                 } deriving (Show,Read,Eq)
 
 data Commit a = Commit { parent :: Maybe Hash -- Initial commit has nothing
                        , cContents :: Set.Set a -- Associated as with commit
                        , cid :: Hash
-                       } deriving (Show)
+                       } deriving (Show,Read)
 
 class Monad m => CoreReader m where
     readCore :: m Core

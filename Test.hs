@@ -21,7 +21,7 @@ import Patch
 import WorkingTree
 
 data BranchedCore = BC Core (Commit Hash) (Commit Hash)
-    deriving (Show)
+    deriving (Show,Read)
 instance Arbitrary BranchedCore where
   arbitrary = do
     f <- arbitrary `suchThat` ((>7) . length . contents)

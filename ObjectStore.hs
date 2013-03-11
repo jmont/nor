@@ -28,12 +28,14 @@ newtype Hash = Hash { getHash :: Strict.ByteString } deriving (Eq, Ord)
 instance Show Hash where
     show = concatMap makeSizeTwo
                   . map (`showHex` "") . Strict.unpack . getHash
+instance Read Hash where
+    readsPrec _ s = [(hexToHash s, "")]
 
 instance Serialize Hash where
     put (Hash h) = put h
     get = Hash <$> get
 
-data ObjectStore a = OS { store :: Map.Map Hash a } deriving Show
+data ObjectStore a = OS { store :: Map.Map Hash a } deriving (Show,Read)
 
 instance (Serialize a) => Serialize (ObjectStore a) where
     put (OS s) = put s
