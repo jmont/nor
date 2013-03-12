@@ -38,8 +38,6 @@ mergeCommits ca cb = do
     patchA <- patchFromCommits lca ca
     patchB <- patchFromCommits lca cb
     let (noConfs, confs) = patchA >||< patchB
---  error $ show noConfs ++ " <-noConfs Confs-> " ++ show confs ++ " | "
---          ++ show c1 ++ "<-c1 c2->" ++ show c2
     if all identicalConf confs
         then pPatchesToCommit lca (noConfs ++ chooseLeft confs) ca >>=
               finalCheckoutWith Succ
@@ -51,10 +49,13 @@ mergeCommits ca cb = do
           finalCheckoutWith :: WorkingTreeWriter m => a -> Commit Hash -> m a
           finalCheckoutWith a com = checkoutCom com >> return a
 
+--From and to are way too complicated
+--Maybe foundation
 startRebase :: WorkingTreeWriter m => Commit Hash -> m (Outcome ())
 startRebase toC = do
     fromC <- getHC
     lca <- getLca fromC toC
+    --Single exit, single entry subgraph
     toRs <- liftM reverse $ liftM (takeWhile (/= lca)) (ancestorList fromC)
     checkoutCom toC
     updateToRs toRs
@@ -106,6 +107,7 @@ patchFromFiles fas fbs =
              Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
           alterFun _ _ = error "Can't Happen"
 
+--This would be pure if it was Commit [File]
 --Return a patch from commit a to commit b
 patchFromCommits :: CoreReader m => Commit Hash -> Commit Hash -> m ParallelPatches
 patchFromCommits ca cb = readCore >>= (\(_,os) -> return
