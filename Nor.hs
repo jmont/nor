@@ -67,7 +67,7 @@ rebase = join $ liftM2 rebase' getHC getToRs
 rebase' :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] -> m (Outcome ())
 rebase' _ [] = return Succ
 rebase' hc (toR:toRs) = updateToRs toRs >> mergeCommits hc toR >>= rebase''
-    where rebase'' Succ = rebase' hc toRs
+    where rebase'' Succ = getHC >>= (\com -> rebase' com toRs)
           rebase'' (Conf cp) = do
               tfs <- getFilesForCom toR
               mapM_ (trackFile . path) tfs -- TODO right?
