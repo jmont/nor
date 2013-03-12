@@ -24,21 +24,23 @@ applyViewableConfs confs noConfs =
 
 --This could also be used for "real" merge, first commmit becomes parent if Succ
 mergeCommits :: WorkingTreeWriter m => Commit Hash -> Commit Hash -> m Outcome
-mergeCommits c1 c2 = do
-    lca <- getLca c1 c2
-    (noConfs, confs) <- getMergePatches c1 c2 lca
-    --error $ show noConfs ++ " <-noConfs Confs-> " ++ show confs ++ " | "
-     --       ++ show c1 ++ "<-c1 c2->" ++ show c2
-    if null confs
-        then pPatchesToCommit lca noConfs c1 >>= checkoutCom >> return Succ
-        else if all identicalConf confs
-                then pPatchesToCommit lca (noConfs ++ chooseLeft confs) c1 >>=
-                     checkoutCom >> return Succ
-             else checkoutCom lca >> return (Conf (confs,noConfs))
+mergeCommits ca cb = do
+    lca <- getLca ca cb
+    patchA <- patchFromCommits lca ca
+    patchB <- patchFromCommits lca cb
+    let (noConfs, confs) = patchA >||< patchB
+--  error $ show noConfs ++ " <-noConfs Confs-> " ++ show confs ++ " | "
+--          ++ show c1 ++ "<-c1 c2->" ++ show c2
+    if all identicalConf confs
+        then pPatchesToCommit lca (noConfs ++ chooseLeft confs) ca >>=
+              finalCheckoutWith Succ
+        else finalCheckoutWith (Conf (confs,noConfs)) lca
     where chooseLeft :: [Conflict ParallelPatches] -> ResolvedConflicts
           chooseLeft = concatMap (\(Conflict p1s _) -> p1s)
           identicalConf :: Conflict ParallelPatches -> Bool
           identicalConf (Conflict p1 p2) = p1 == p2
+          finalCheckoutWith :: WorkingTreeWriter m => a -> Commit Hash -> m a
+          finalCheckoutWith a com = checkoutCom com >> return a
 
 startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
 startRebase toC = do
@@ -137,13 +139,6 @@ applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
 
 applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
-
-getMergePatches :: CoreReader m => Commit Hash -> Commit Hash -> Commit Hash ->
-               m (ParallelPatches,[Conflict ParallelPatches])
-getMergePatches ca cb lca = do
-     patchA <- patchFromCommits lca ca
-     patchB <- patchFromCommits lca cb
-     return $ patchA >||< patchB
 
 pPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
                            Commit Hash -> m (Commit Hash)
