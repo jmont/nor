@@ -42,13 +42,13 @@ runRebase :: WorkingTreeWriter m => String -> m String
 runRebase hh = do
     let toHash = O.hexToHash hh
     res <- (commitById toHash >>= startRebase)
-    case res of Left () -> liftM ("Updated to " ++) (getHC >>= (return . show))
-                Right () -> return "Conflicts! Fix them & run rebase --continue"
+    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
+                Conf _ -> return "Conflicts! Fix them & run rebase --continue"
 
 rebaseContinue :: WorkingTreeWriter m => m String
 rebaseContinue = readFs >>= commit >> rebase >>= (\res ->
-    case res of Left () -> liftM ("Updated to " ++) (getHC >>= (return . show))
-                Right () -> return "Conflicts! Fix them & run rebase --continue")
+    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
+                Conf _ -> return "Conflicts! Fix them & run rebase --continue")
 
 dispatch :: WorkingTreeWriter m => String -> [String] -> m String
 dispatch "rebase" ["--continue"] = rebaseContinue

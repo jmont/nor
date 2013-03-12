@@ -319,7 +319,7 @@ prop_rebaseEq (BC core b1 b2) = do
   (res1,wt1) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
   (res2,wt2) <- workingTreeToGen (checkoutCom b2 >> startRebase b1) wt
   case (res1,res2) of
-    (Left (),Left ()) -> do
+    (Succ,Succ) -> do
         (reb1Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt1
         (reb2Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt2
         return $ reb1Files == reb2Files
@@ -330,7 +330,7 @@ prop_rebaseSucceeds (BC core b1 b2) = do
   let wt = ((core,Ephemera b1 []), initFS)
   (res,_) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
   case res of
-    Left ()   -> return True
+    Succ      -> return True
     otherwise -> return False
 
 prop_rebaseBothSucc :: BranchedCore -> Gen Bool

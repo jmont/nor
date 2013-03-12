@@ -13,17 +13,26 @@ import WorkingTree
 
 type ResolvedConflicts = ParallelPatches
 
-data Outcome = Succ | Conf ([Conflict ParallelPatches],ParallelPatches)
+data Outcome a = Succ | Conf a
 
-applyViewableConfs :: WorkingTreeWriter m => [Conflict ParallelPatches] ->
-                      ParallelPatches -> m ()
-applyViewableConfs confs noConfs =
+data ConflictPatches = CP [Conflict ParallelPatches] ParallelPatches
+
+pPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
+                           Commit Hash -> m (Commit Hash)
+pPatchesToCommit lca patches pc= do
+    lcaFiles <- getFilesForCom lca
+    let sPatches = sequenceParallelPatches patches
+    let newFiles = applyPatches sPatches lcaFiles
+    addCommit newFiles pc
+
+applyConflictPatches :: WorkingTreeWriter m => ConflictPatches -> m ()
+applyConflictPatches (CP confs noConfs) =
   let conflictPatches = map conflictAsPatch confs
       allPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
   in applyFileTrans (applyPatches allPatches)
 
 --This could also be used for "real" merge, first commmit becomes parent if Succ
-mergeCommits :: WorkingTreeWriter m => Commit Hash -> Commit Hash -> m Outcome
+mergeCommits :: WorkingTreeWriter m => Commit Hash -> Commit Hash -> m (Outcome ConflictPatches)
 mergeCommits ca cb = do
     lca <- getLca ca cb
     patchA <- patchFromCommits lca ca
@@ -34,7 +43,7 @@ mergeCommits ca cb = do
     if all identicalConf confs
         then pPatchesToCommit lca (noConfs ++ chooseLeft confs) ca >>=
               finalCheckoutWith Succ
-        else finalCheckoutWith (Conf (confs,noConfs)) lca
+        else finalCheckoutWith (Conf (CP confs noConfs)) lca
     where chooseLeft :: [Conflict ParallelPatches] -> ResolvedConflicts
           chooseLeft = concatMap (\(Conflict p1s _) -> p1s)
           identicalConf :: Conflict ParallelPatches -> Bool
@@ -42,7 +51,7 @@ mergeCommits ca cb = do
           finalCheckoutWith :: WorkingTreeWriter m => a -> Commit Hash -> m a
           finalCheckoutWith a com = checkoutCom com >> return a
 
-startRebase :: WorkingTreeWriter m => Commit Hash -> m (Either () ())
+startRebase :: WorkingTreeWriter m => Commit Hash -> m (Outcome ())
 startRebase toC = do
     fromC <- getHC
     lca <- getLca fromC toC
@@ -51,21 +60,18 @@ startRebase toC = do
     updateToRs toRs
     rebase
 
-rebase :: WorkingTreeWriter m => m (Either () ())
-rebase = do
-    fromC <- getHC
-    toRs <- getToRs
-    rebase' fromC toRs
+rebase :: WorkingTreeWriter m => m (Outcome ())
+rebase = join $ liftM2 rebase' getHC getToRs
 
-rebase' :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] ->
-                                  m (Either () ())
-rebase' _ [] = return $ Left () -- TODO is this bad? should this be peel?
+rebase' :: WorkingTreeWriter m => Commit Hash -> [Commit Hash] -> m (Outcome ())
+rebase' _ [] = return Succ
 rebase' hc (toR:toRs) = updateToRs toRs >> mergeCommits hc toR >>= rebase''
     where rebase'' Succ = rebase' hc toRs
-          rebase'' (Conf (confs,noConfs)) = do
+          rebase'' (Conf cp) = do
               tfs <- getFilesForCom toR
               mapM_ (trackFile . path) tfs -- TODO right?
-              applyViewableConfs confs noConfs >> return (Right ())
+              applyConflictPatches cp
+              return (Conf ())
 
 getLca :: CoreReader m => Commit Hash -> Commit Hash -> m (Commit Hash)
 getLca ca cb = do
@@ -139,11 +145,3 @@ applyPatch p@(SP (AP ppath (Change (ChangeHunk o dels adds)))) (f:fs) =
 
 applyPatches :: [SequentialPatch] -> [File] -> [File]
 applyPatches ps fs = foldl (flip applyPatch) fs ps
-
-pPatchesToCommit :: CoreExtender m => Commit Hash -> ParallelPatches ->
-                           Commit Hash -> m (Commit Hash)
-pPatchesToCommit lca patches pc= do
-    lcaFiles <- getFilesForCom lca
-    let sPatches = sequenceParallelPatches patches
-    let newFiles = applyPatches sPatches lcaFiles
-    addCommit newFiles pc
