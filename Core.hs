@@ -30,7 +30,7 @@ type Core = (Set.Set (Commit Hash), ObjectStore File)
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
-                 } deriving (Show,Read,Eq)
+                 } deriving (Show,Read,Eq,Ord)
 
 data Commit a = Commit { parent :: Maybe Hash -- Initial commit has nothing
                        , cContents :: Set.Set a -- Associated as with commit
