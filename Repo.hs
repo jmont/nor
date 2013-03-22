@@ -2,7 +2,6 @@
 
 module Repo
   ( Repo
-  , Ephemera(..)
   , initRepo
   , RepoReader(..)
   , RepoWriter(..)
