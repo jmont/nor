@@ -1,6 +1,7 @@
 module Core
   ( File(..)
-  , Commit(..)
+  , HashCommit(..)
+  , DataCommit(..)
   , Core
   , CoreReader(..), CoreExtender(..)
   , initCore
@@ -8,6 +9,7 @@ module Core
   , commitById
   , coreToIO
   , coreToGen
+  , dataCommitById
   )
 where
 
@@ -26,22 +28,26 @@ data CR a = CR { rc :: Core -> a }
 data CX a = CX { xc :: Core -> (a, Core) }
 
 -- list of all commits, hash->file, head commit, commitCount
-type Core = (Set.Set (Commit Hash), ObjectStore File)
+type Core = (Set.Set (HashCommit), ObjectStore File)
 
 data File = File { path :: String -- Unix filepath: "/foo/bar/baz"
                  , contents :: [String] -- Simple representation for now
                  } deriving (Show,Read,Eq,Ord)
 
-data Commit a = Commit { parent :: Maybe Hash -- Initial commit has nothing
-                       , cContents :: Set.Set a -- Associated as with commit
-                       , cid :: Hash
+data HashCommit = HashCommit { hparent :: Maybe Hash     -- Initial commit has nothing
+                             , hContents :: Set.Set Hash-- Associated as with commit
+                             , cid :: Hash
                        } deriving (Show,Read)
+
+data DataCommit a = DataCommit { dparent :: Maybe (DataCommit a)
+                               , dContents :: Set.Set a -- Associated as with commit
+                               } deriving (Show,Read,Ord,Eq)
 
 class Monad m => CoreReader m where
     readCore :: m Core
 
 class CoreReader m => CoreExtender m where
-    addCommit :: [File] -> Commit Hash -> m (Commit Hash)
+    addCommit :: DataCommit File -> m (HashCommit)
 
 instance Monad CR where
   return a = CR $ const a
@@ -57,44 +63,63 @@ instance CoreReader CR where
 instance CoreReader CX where
   readCore = CX $ \c -> (c, c)
 
+-- This could do a better job of returning quickly when already in the set
 instance CoreExtender CX where
-  addCommit fs pc = CX $ \(cs, os) ->
-    let (hs, os') = addObjects os fs
-        pcid = cid pc
-        hashSet = Set.fromList hs
-        c' = Commit (Just pcid) hashSet $ mkCommitHash (pcid : List.sort hs)
-    in if Set.member pc cs
-       then (c', (Set.insert c' cs, os'))
-       else error "Parent commit not found in commit set"
+  addCommit (DataCommit (Just pc) fs) = CX $ \(cs, os) ->
+    let(hpc,(cs',os')) = xc (addCommit pc) (cs,os)
+       (hs, os'') = addObjects os' (Set.toList fs)
+       pcid = cid hpc
+       hashSet = Set.fromList hs
+       c' = HashCommit (Just pcid) hashSet $ mkCommitHash (pcid : List.sort hs)
+    in (c', (Set.insert c' cs', os''))
     where mkCommitHash :: [Hash] -> Hash
           mkCommitHash = Hash . hash . BS.concat . map getHash
+  -- Might want a better check here
+  addCommit (DataCommit Nothing _) = return $ HashCommit Nothing Set.empty $ Hash (hash (encode ""))
 
 instance Serialize File where
     put (File p c) = put p >> put c
     get = File <$> get <*> get
 
-instance Ord (Commit a) where
+instance Ord HashCommit where
    compare c1 c2 = compare (cid c1) (cid c2)
-instance Eq (Commit a) where
+instance Eq HashCommit where
    c1 == c2 = cid c1 == cid c2
-instance (Ord a, Serialize a) => Serialize (Commit a) where
-    put (Commit pid hs id) = put pid >> put hs >> put id
-    get = Commit <$> get <*> get <*> get
+instance Serialize HashCommit where
+    put (HashCommit pid hs id) = put pid >> put hs >> put id
+    get = HashCommit <$> get <*> get <*> get
 
 --TODO: This function could do better error handling
-getFilesForCom :: CoreReader m => Commit Hash -> m [File]
+getFilesForCom :: CoreReader m => HashCommit -> m [File]
 getFilesForCom com = do
   (_,os) <- readCore
-  return $ Maybe.mapMaybe (getObject os) (Set.toList (cContents com))
+  return $ Maybe.mapMaybe (getObject os) (Set.toList (hContents com))
 
-commitById :: CoreReader m => Hash -> m (Commit Hash)
+commitById :: CoreReader m => Hash -> m (HashCommit)
 commitById id = readCore >>= (\(commitSet,_) -> return
-    (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
+    (foldl (\z c@(HashCommit _ _ cid) -> if id == cid then c else z)
            (error "Commit not found") (Set.elems commitSet)))
+
+--commitById' :: CoreReader m => Hash -> m (Maybe HashCommit)
+--commitById' id = readCore >>= (\(commitSet,_) -> return
+--    (foldl (\z c@(HashCommit _ _ cid) -> if id == cid then Just c else z)
+--           Nothing (Set.elems commitSet)))
+--
+dataCommitById :: CoreReader m => Hash -> m (DataCommit File)
+dataCommitById id = do
+    hashCom <- commitById id
+    fs <- getFilesForCom hashCom
+    pc <- getParent (hparent hashCom)
+    return $ DataCommit pc (Set.fromList fs)
+  where getParent :: CoreReader m => Maybe Hash -> m (Maybe (DataCommit File))
+        getParent Nothing = return Nothing
+        getParent (Just id) = do
+          com <- dataCommitById id
+          return $ Just com
 
 -- An empty Core
 initCore :: Core
-initCore = let initC = Commit Nothing Set.empty $ Hash (hash (encode ""))
+initCore = let initC = HashCommit Nothing Set.empty $ Hash (hash (encode ""))
            in (Set.singleton initC, mkEmptyOS)
 
 -- Lifts Core Extender into IO

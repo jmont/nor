@@ -22,7 +22,6 @@ import System.IO
 import Test.QuickCheck.Gen
 
 import Core
-import ObjectStore
 import Repo
 
 data FileSystem = FS { _trackedPaths :: Set.Set FilePath
@@ -42,7 +41,7 @@ class RepoReader m => WorkingTreeReader m where
 
 class (RepoWriter m, WorkingTreeReader m) => WorkingTreeWriter m where
     trackFile :: FilePath -> m ()
-    checkoutCom :: Commit Hash -> m ()
+    checkoutCom :: HashCommit -> m ()
     -- Does this expose too much?
     applyFileTrans :: ([File] -> [File]) -> m ()
 
@@ -85,7 +84,7 @@ instance RepoReader WTW where
    readEphemera = WTW $ liftState $ readEphemera
 
 instance CoreExtender WTW where
-   addCommit fs pc = WTW $ liftState $ addCommit fs pc
+   addCommit dc = WTW $ liftState $ addCommit dc
 
 instance CoreReader WTW where
    readCore = WTW $ liftState readCore

@@ -19,15 +19,14 @@ import Data.Serialize
 import qualified Data.Set as Set
 import Test.QuickCheck.Gen
 
-import ObjectStore
 import Core
 
 liftState :: Monad m => m a -> b -> m (a,b)
 liftState m s = m >>= (\a -> return (a,s))
 
 -- The changing part of the repository, allows the repository to switch states.
-data Ephemera = Ephemera { headC :: Commit Hash-- Current checked-out commit
-                         , toRebase :: [Commit Hash]
+data Ephemera = Ephemera { headC :: HashCommit-- Current checked-out commit
+                         , toRebase :: [HashCommit]
                             -- Mid-rebase, the commits yet to be handled.
                          } deriving Show
 
@@ -66,8 +65,8 @@ instance RepoReader RR where
 data RW a = RW { wr :: CoreExtender m => Ephemera -> m (a, Ephemera) }
 
 class (CoreExtender m, RepoReader m) => RepoWriter m where
-    updateHead :: Commit Hash -> m ()
-    updateToRs :: [Commit Hash] -> m ()
+    updateHead :: HashCommit -> m ()
+    updateToRs :: [HashCommit] -> m ()
 
 instance Monad RW where
     return a = RW $ \eph -> return (a, eph)
@@ -78,7 +77,7 @@ instance CoreReader RW where
 
 -- Additionaly updates the head commit
 instance CoreExtender RW where
-    addCommit fs pc = RW (liftState (addCommit fs pc)) >>=
+    addCommit dc = RW (liftState (addCommit dc)) >>=
                        (\com -> updateHead com >> return com)
 
 instance RepoReader RW where
@@ -90,10 +89,10 @@ instance RepoWriter RW where
 
 ------------------------------------------------------------------------------
 
-getHC :: RepoReader m => m (Commit Hash)
+getHC :: RepoReader m => m (HashCommit)
 getHC = liftM headC readEphemera
 
-getToRs :: RepoReader m => m ([Commit Hash])
+getToRs :: RepoReader m => m ([HashCommit])
 getToRs = liftM toRebase readEphemera
 
 -- Lifts Repo Writer into IO

@@ -5,17 +5,15 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 
 import Core
-import ObjectStore
+--import ObjectStore
+import WorkingTree
 import Patch
-import ObjectStore
+--import Repo
+--import ObjectStore
 
 data Outcome a = Succ | Fail a
 
 data ConflictPatches = CP [Conflict ParallelPatches] ParallelPatches
-
-data DataCommit a = DataCommit { dparent :: Maybe (DataCommit a)
-                               , dcContents :: Set.Set a -- Associated as with commit
-                               } deriving (Show,Read,Ord,Eq)
 
 type ResolvedConflicts = ParallelPatches
 
@@ -29,7 +27,7 @@ mergeCommits ca cb =
    in if all identicalConf confs
          then
             -- Can we use fmap here?
-            let lcaFiles = Set.toList $ dcContents lca
+            let lcaFiles = Set.toList $ dContents lca
                 sPatches = sequenceParallelPatches (noConfs ++ chooseLeft confs)
                 newFiles = applyPatches sPatches lcaFiles
             in Left $ DataCommit (Just ca) (Set.fromList newFiles)
@@ -47,6 +45,38 @@ replay hc (toR:toRs) =
       --Should we peel off like this?
       Right confPatches -> (hc,Fail (confPatches, toRs))
 
+--startRebase :: WorkingTreeWriter m => HashCommit -> m (Outcome ())
+--startRebase hFoundation = do
+--    hfromC <- getHC
+--    dfromC <- dataCommitById $ cid hfromC
+--    dFoundation <- dataCommitById $ cid hFoundation
+--    let lca = getLca dfromC dFoundation
+--    --Single exit, single entry subgraph
+--    let toRs = reverse $ (takeWhile (/= lca)) (ancestorList dfromC)
+--    checkoutCom hFoundation
+--    updateToRs toRs
+--    rebase
+--
+applyConflictPatches :: WorkingTreeWriter m => ConflictPatches -> m ()
+applyConflictPatches (CP confs noConfs) =
+  let conflictPatches = map conflictAsPatch confs
+      allPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
+  in applyFileTrans (applyPatches allPatches)
+
+-- This is still ugly
+--rebase :: m (Outcome ())
+--rebase = do
+--   hc <- (getHC >>= (dataCommitById . cid))
+--   htoRs <- getToRs
+--   dtoRs <- mapM (dataCommitById . cid) htoRs
+--   case replay hc dtoRs of
+--    (hc',Succ) -> addCommit hc' >> return Succ
+--    (hc',Fail (CP confs noConfs,toRs')) ->
+--      -- This is safe because it always succeeds when toRs is empty
+--      let lca = getLca hc (head dtoRs)
+--      in checkoutCom lca >> applyConflictPatches >> updateToRs toRs' >>
+--         updateHead hc' >> return (Fail ())
+--
 -- youngest to oldest
 ancestorList :: DataCommit a -> [DataCommit a]
 ancestorList c1@(DataCommit Nothing _)    = [c1]
@@ -62,13 +92,14 @@ getLca dca dcb =
 
 patchFromCommits :: DataCommit File -> DataCommit File -> ParallelPatches
 patchFromCommits dca dcb =
-      let filesA = Set.toList $ dcContents dca
-          filesB = Set.toList $ dcContents dcb
+      let filesA = Set.toList $ dContents dca
+          filesB = Set.toList $ dContents dcb
           filesOnlyA = filesA List.\\ filesB
           filesOnlyB = filesB List.\\ filesA
-      in patchFromFiles filesA filesB
+      in patchFromFiles filesOnlyA filesOnlyB
 
 -- return a patch representing going from files in a to files in b
+-- Might be able to write this better with groupBy??
 patchFromFiles :: [File] -> [File] -> ParallelPatches
 patchFromFiles fas fbs =
     let --Assume everything in A has been deleted
@@ -89,7 +120,6 @@ patchFromFiles fas fbs =
              Just $ map Change $ editsToChangeHunks $ getEdits fContents (contents changedFile)
           alterFun _ _ = error "Can't Happen"
 
---Assumes SEQUENTIAL PATCH
 applyPatch :: SequentialPatch -> [File] -> [File]
 applyPatch (SP (AP ppath (CreateFile c))) fs = File ppath c : fs
 applyPatch (SP (AP ppath (RemoveFile _))) [] =

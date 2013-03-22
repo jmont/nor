@@ -4,8 +4,8 @@ import qualified Data.Set as Set
 import qualified ObjectStore as O
 
 import Core
-import Nor
-import ObjectStore
+--import Rebase
+--import ObjectStore
 import Repo
 import WorkingTree
 
@@ -18,10 +18,11 @@ worldPath = progDirPath ++ "/world"
 -- Adds a new commit to the world containing the files specified.
 -- The parent of the new commit is the current head.
 -- The new commit becomes the current head.
-commit :: RepoWriter m => [File] -> m (Commit Hash)
+commit :: RepoWriter m => [File] -> m (HashCommit)
 commit fs = do
     hc <- getHC
-    com <- addCommit fs hc
+    pc <- dataCommitById (cid hc)
+    com <- addCommit $ DataCommit (Just pc) (Set.fromList fs)
     return com
 
 -- Output the head commit and all other commits.
@@ -39,20 +40,20 @@ files hh = do
     files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
-runRebase :: WorkingTreeWriter m => String -> m String
-runRebase hh = do
-    let toHash = O.hexToHash hh
-    res <- (commitById toHash >>= startRebase)
-    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
-                Conf _ -> return "Conflicts! Fix them & run rebase --continue"
-
-rebaseContinue :: WorkingTreeWriter m => m String
-rebaseContinue = readFs >>= commit >> rebase >>= (\res ->
-    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
-                Conf _ -> return "Conflicts! Fix them & run rebase --continue")
-
+--runRebase :: WorkingTreeWriter m => String -> m String
+--runRebase hh = do
+--    let toHash = O.hexToHash hh
+--    res <- (commitById toHash >>= startRebase)
+--    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
+--                Conf _ -> return "Conflicts! Fix them & run rebase --continue"
+--
+--rebaseContinue :: WorkingTreeWriter m => m String
+--rebaseContinue = readFs >>= commit >> rebase >>= (\res ->
+--    case res of Succ   -> liftM ("Updated to " ++) (getHC >>= (return . show))
+--                Conf _ -> return "Conflicts! Fix them & run rebase --continue")
+--
 dispatch :: WorkingTreeWriter m => String -> [String] -> m String
-dispatch "rebase" ["--continue"] = rebaseContinue
+--dispatch "rebase" ["--continue"] = rebaseContinue
 dispatch cmd args = liftM null getToRs >>= \res -> if not res
                                                    then return "Finish rebase!"
                                                    else dispatch' cmd args
@@ -64,7 +65,7 @@ dispatch' "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
         add' (n:ns) = trackFile n >> add' ns
 dispatch' "tree" [] = tree
 dispatch' "files" [h] = files h >>= return . show
-dispatch' "rebase" [h] = runRebase h
+--dispatch' "rebase" [h] = runRebase h
 dispatch' "checkout" [h] = commitById (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
 dispatch' _ _ = error "Invlaid command"
 
