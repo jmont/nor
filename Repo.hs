@@ -50,7 +50,7 @@ initRepo = let core@(commitSet,_) = initCore
 data RR a = RR { rr :: Repo -> a }
 
 class CoreReader m => RepoReader m where
-    readRepo :: m Repo
+    readEphemera :: m Ephemera
 
 instance Monad RR where
     return a = RR $ const a
@@ -60,7 +60,7 @@ instance CoreReader RR where
     readCore = RR $ fst
 
 instance RepoReader RR where
-    readRepo = RR $ id
+    readEphemera = RR $ snd
 
 ------------------------------------------------------------------------------
 
@@ -83,7 +83,7 @@ instance CoreExtender RW where
                        (\com -> updateHead com >> return com)
 
 instance RepoReader RW where
-    readRepo = RW $ \eph -> readCore >>= (\core -> return ((core,eph), eph))
+    readEphemera = RW $ \eph -> return (eph, eph)
 
 instance RepoWriter RW where
     updateHead com = RW $ \eph -> return ((),Ephemera com (toRebase eph))
@@ -92,10 +92,10 @@ instance RepoWriter RW where
 ------------------------------------------------------------------------------
 
 getHC :: RepoReader m => m (Commit Hash)
-getHC = liftM (headC . snd) readRepo
+getHC = liftM headC readEphemera
 
 getToRs :: RepoReader m => m ([Commit Hash])
-getToRs = liftM (toRebase . snd) readRepo
+getToRs = liftM toRebase readEphemera
 
 -- Lifts Repo Writer into IO
 repoToIO :: RW a -> Repo -> IO (a,Repo)

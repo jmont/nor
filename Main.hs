@@ -20,14 +20,15 @@ worldPath = progDirPath ++ "/world"
 -- The new commit becomes the current head.
 commit :: RepoWriter m => [File] -> m (Commit Hash)
 commit fs = do
-    (_, eph) <- readRepo
+    eph <- readEphemera
     com <- addCommit fs (headC eph)
     return com
 
 -- Output the head commit and all other commits.
 tree :: RepoReader m => m String
 tree = do
-    ((commits, _) , eph) <- readRepo
+    eph <- readEphemera
+    (commits,_) <- readCore
     return $ ("HEAD: " ++ show (cid (headC eph)) ++ "\n") ++ concatMap show (Set.toList commits)
 
 -- Print the files from the commit corresponding to the specified hash.

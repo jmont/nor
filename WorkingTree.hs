@@ -58,7 +58,7 @@ instance WorkingTreeReader WTR where
     readFs = WTR $ currFiles . snd
 
 instance RepoReader WTR where
-    readRepo = WTR $ fst
+    readEphemera = WTR $ (snd . fst)
 
 instance CoreReader WTR where
     readCore = WTR $ fst . fst
@@ -82,7 +82,7 @@ instance WorkingTreeReader WTW where
     readFs = WTW $ \fs -> return (currFiles fs, fs)
 
 instance RepoReader WTW where
-   readRepo = WTW $ liftState $ readRepo
+   readEphemera = WTW $ liftState $ readEphemera
 
 instance CoreExtender WTW where
    addCommit fs pc = WTW $ liftState $ addCommit fs pc
