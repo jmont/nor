@@ -222,3 +222,17 @@ mergeParallelPatches p1s p2s =
             foldr (\(n,k,_) (k1s,k2s) ->
                      if partFun n then (k:k1s,k2s) else (k1s,k:k2s))
                   ([],[]) (map vertexMap vertexList)
+
+-- ChangeHunk1 "passes through" ChangeHunk2, assumes they don't conflict
+adjustPatch :: Patch -> Patch -> Patch
+adjustPatch p1 p2
+  | conflicts p1 p2 = error "adjustPatch got conflicting patches"
+  | otherwise =
+     case (p1,p2) of
+       (AP _ (Change ch1),AP p2 (Change ch2)) -> AP p2 $ Change $ adjustCH ch1 ch2
+       _ -> p2
+  where adjustCH :: ChangeHunk -> ChangeHunk -> ChangeHunk
+        adjustCH (ChangeHunk off1 old1 new1) ch2
+          | off1 < offset ch2 =
+            ChangeHunk (length new1 - length old1 + offset ch2) (old ch2) (new ch2)
+          | otherwise = ch2
