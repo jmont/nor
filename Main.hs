@@ -4,7 +4,7 @@ import qualified Data.Set as Set
 import qualified ObjectStore as O
 
 import Core
---import Rebase
+import Rebase
 --import ObjectStore
 import Repo
 import WorkingTree
@@ -40,6 +40,18 @@ files hh = do
     files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
+simpleRebase :: RepoWriter m => String -> m (HashCommit)
+simpleRebase hexFoundation = do
+    let hFoundation = O.hexToHash hexFoundation
+    dFoundation <- dataCommitById hFoundation
+    hRebase <- getHC
+    dRebase <- dataCommitById $ cid hRebase
+    let lca = getLca dRebase dFoundation
+    let toRs = reverse $ (takeWhile (/= lca)) (ancestorList dRebase)
+    let newCom = replay dFoundation toRs
+    com <- addCommit $ newCom
+    return com
+
 --runRebase :: WorkingTreeWriter m => String -> m String
 --runRebase hh = do
 --    let toHash = O.hexToHash hh
@@ -66,6 +78,7 @@ dispatch' "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
 dispatch' "tree" [] = tree
 dispatch' "files" [h] = files h >>= return . show
 --dispatch' "rebase" [h] = runRebase h
+dispatch' "simpleRebase" [h] = simpleRebase h >>= return . show
 dispatch' "checkout" [h] = commitById (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
 dispatch' _ _ = error "Invlaid command"
 

@@ -37,13 +37,32 @@ mergeCommits ca cb =
           identicalConf :: Conflict ParallelPatches -> Bool
           identicalConf (Conflict p1 p2) = p1 == p2
 
-replay :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
-replay hc [] = (hc, Succ)
-replay hc (toR:toRs) =
-    case mergeCommits hc toR of
-      Left hc' -> replay hc' toRs
-      --Should we peel off like this?
-      Right confPatches -> (hc,Fail (confPatches, toRs))
+-- Assumes no conflicts
+replay :: DataCommit File -> [DataCommit File] -> DataCommit File
+replay fc [] = fc
+replay fc (toR:toRs) =
+  let lca = getLca fc toR
+      ppatchF = patchFromCommits lca fc
+      deltaStars = map getDeltaFromPC (toR:toRs)
+      deltaTwidles = map (`adjustedByPPatch` ppatchF) deltaStars
+  in foldl (\com delta -> patchCommit com delta) fc deltaTwidles
+  where getDeltaFromPC :: DataCommit File -> ParallelPatches
+        getDeltaFromPC (DataCommit Nothing _) = []
+        getDeltaFromPC c@(DataCommit (Just pc) _) = patchFromCommits pc c
+        patchCommit :: DataCommit File -> ParallelPatches -> DataCommit File
+        patchCommit dc pp =
+          let sp = sequenceParallelPatches pp
+              newFiles = applyPatches sp (Set.toList $ dContents dc)
+          in DataCommit (Just dc) (Set.fromList newFiles)
+
+
+--replay :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
+--replay hc [] = (hc, Succ)
+--replay hc (toR:toRs) =
+--    case mergeCommits hc toR of
+--      Left hc' -> replay hc' toRs
+--      --Should we peel off like this?
+--      Right confPatches -> (hc,Fail (confPatches, toRs))
 
 --startRebase :: WorkingTreeWriter m => HashCommit -> m (Outcome ())
 --startRebase hFoundation = do
