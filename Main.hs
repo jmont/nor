@@ -78,7 +78,7 @@ dispatch' "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
 dispatch' "tree" [] = tree
 dispatch' "files" [h] = files h >>= return . show
 --dispatch' "rebase" [h] = runRebase h
-dispatch' "simpleRebase" [h] = simpleRebase h >>= return . show
+dispatch' "simpleRebase" [h] = simpleRebase h >>= (\com -> checkoutCom com >> return (show com))
 dispatch' "checkout" [h] = commitById (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
 dispatch' _ _ = error "Invlaid command"
 
