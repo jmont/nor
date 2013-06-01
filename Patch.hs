@@ -225,7 +225,8 @@ mergeParallelPatches p1s p2s =
 
 adjustedByPatch :: Patch -> Patch -> Patch
 p2 `adjustedByPatch` p1
-  | conflicts p1 p2 = error "adjustPatch got conflicting patches"
+  | conflicts p1 p2 =
+     error $ "adjustPatch got conflicting patches" ++ show p1 ++ " " ++ show p2
   | otherwise =
      case (p1,p2) of
        (AP _ (Change ch1),AP p2 (Change ch2)) ->
