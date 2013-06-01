@@ -40,15 +40,13 @@ files hh = do
     files <- getFilesForCom com
     return $ ("Files for " ++ hh) : map path files
 
-simpleRebase :: RepoWriter m => String -> m (HashCommit)
-simpleRebase hexFoundation = do
+rebase :: RepoWriter m => String -> m (HashCommit)
+rebase hexFoundation = do
     let hFoundation = O.hexToHash hexFoundation
     dFoundation <- dataCommitById hFoundation
     hRebase <- getHC
     dRebase <- dataCommitById $ cid hRebase
-    let lca = getLca dRebase dFoundation
-    let toRs = reverse $ (takeWhile (/= lca)) (ancestorList dRebase)
-    let newCom = replay dFoundation toRs
+    let newCom = simpleRebase dFoundation dRebase
     com <- addCommit $ newCom
     return com
 
@@ -78,7 +76,7 @@ dispatch' "add" ns = add' ns >> (return $ "Tracked " ++ show ns)
 dispatch' "tree" [] = tree
 dispatch' "files" [h] = files h >>= return . show
 --dispatch' "rebase" [h] = runRebase h
-dispatch' "simpleRebase" [h] = simpleRebase h >>= (\com -> checkoutCom com >> return (show com))
+dispatch' "simpleRebase" [h] = rebase h >>= (\com -> checkoutCom com >> return (show com))
 dispatch' "checkout" [h] = commitById (O.hexToHash h) >>= (\com -> checkoutCom com >> return (show com))
 dispatch' _ _ = error "Invlaid command"
 
