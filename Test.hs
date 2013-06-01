@@ -12,17 +12,18 @@ import Data.Maybe
 import qualified Data.Set as Set
 import qualified Control.Monad.State as S
 
-import Nor
+--import Nor
 import Main
 import ObjectStore
 import Core
 import Repo
 import Patch
 import WorkingTree
+import Rebase
 
 import qualified Data.Map as Map -- For failure testing
 
-data BranchedCore = BC Core (Commit Hash) (Commit Hash)
+data BranchedCore = BC (DataCommit File) (DataCommit File)
     deriving (Show,Read)
 instance Arbitrary BranchedCore where
   arbitrary = do
@@ -30,34 +31,28 @@ instance Arbitrary BranchedCore where
     ps <- mkGoodPPatches f `suchThat` ((>2) . length)
     split <- choose (1, length ps - 1)
     let (br1ps, br2ps) = splitAt split (reverse (sort ps))
-    let core@(cs, os) = initCore
-    (hc,core') <- coreToGen (addCommit [f] (Set.findMin cs)) core
-    (branch1, core'')  <- coreToGen (foldM applyPatchToCore hc br1ps) core'
-    (branch2, core''') <- coreToGen (foldM applyPatchToCore hc br2ps) core''
-    return $ BC core''' branch1 branch2
-    where applyPatchToCore com p = pPatchesToCommit com [p] com
-  shrink (BC _ (Commit Nothing _ _) (Commit Nothing _ _)) = []
-  shrink (BC (comSet,os) (b1@(Commit Nothing _ _)) (Commit (Just pcid2) _ _)) =
-      let pc = commitById' comSet pcid2
-          bc = BC (comSet,os) b1 pc
+    let hc = DataCommit (Just firstDCom) (Set.singleton f)
+    let branch1 = foldl (\com p -> patchCommit com [p]) hc br1ps
+    let branch2 = foldl (\com p -> patchCommit com [p]) hc br2ps
+    return $ BC branch1 branch2
+  shrink (BC (DataCommit Nothing _) (DataCommit Nothing _)) = []
+  shrink (BC (b1@(DataCommit Nothing _)) (DataCommit (Just pc) _)) =
+      let bc = BC b1 pc
       in bc : shrink bc
-  shrink (BC (comSet,os) (Commit (Just pcid1) _ _) (b2@(Commit Nothing _ _))) =
-      let pc = commitById' comSet pcid1
-          bc = BC (comSet,os) pc b2
+  shrink (BC (DataCommit (Just pc) _) (b2@(DataCommit Nothing _))) =
+      let bc = BC pc b2
       in bc : shrink bc
-  shrink (BC (comSet,os) (b1@(Commit (Just pcid1) _ _)) (b2@(Commit (Just pcid2) _ _)))
-   | pcid1 == pcid2 = []
+  shrink (BC (b1@(DataCommit (Just pc1) _)) (b2@(DataCommit (Just pc2) _)))
+   | pc1 == pc2 = []
    | otherwise      =
-       let pc1 = commitById' comSet pcid1
-           pc2 = commitById' comSet pcid2
-           bc = BC (comSet,os) b1 pc2
+       let bc = BC b1 pc2
        in bc : shrink bc
-
+--
 -- Can't use regular commitById because we cant escape the monad
-commitById' :: (Set.Set (Commit Hash)) -> Hash -> Commit Hash
-commitById' commitSet id =
-            (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
-            (error "Commit not found") (Set.elems commitSet))
+--commitById' :: (Set.Set (Commit Hash)) -> Hash -> Commit Hash
+--commitById' commitSet id =
+--            (foldl (\z c@(Commit _ _ cid) -> if id == cid then c else z)
+--            (error "Commit not found") (Set.elems commitSet))
 
 data PPatchesFromFiles = PPF ParallelPatches ParallelPatches
     deriving (Show)
@@ -117,19 +112,22 @@ data AsciiChar = AsciiChar Char
 instance Arbitrary AsciiChar where
     --arbitrary = arbitrary `suchThat` Char.isAscii >>= return . AsciiChar
     arbitrary = elements goodChars >>= return . AsciiChar
-type AsciiStr = [AsciiChar]
+data AsciiStr = AsciiStr [AsciiChar]
+instance Arbitrary AsciiStr where
+   -- This makes every line and file name 1 letter, should change eventuall
+    arbitrary = liftM AsciiStr $ liftM (:[]) arbitrary
 
 asciiChartoChar :: AsciiChar -> Char
 asciiChartoChar (AsciiChar ch) = ch
 
 asciiStrToString :: AsciiStr -> String
-asciiStrToString aStr = map asciiChartoChar aStr
+asciiStrToString (AsciiStr aStr) = map asciiChartoChar aStr
 
 instance Arbitrary File where
     arbitrary = do
         NonNegative len <- arbitrary
         conts <- arbitrary
-        NonEmpty fpath <- arbitrary
+        fpath <- arbitrary
         return $ File (asciiStrToString fpath) (take len (map asciiStrToString conts))
 
 ------------------------------------------------------------------------------
@@ -145,8 +143,6 @@ mkGoodPPatches f =
             chs <- mkGoodCHs 0 f
             return $ map (AP (path f) . Change) chs) ]
 
-
--- Generates several random change hunks given a file that don't conflict
 mkGoodCHs :: Int -> File -> Gen [ChangeHunk]
 mkGoodCHs startoff f =
     if startoff >= length (contents f) - 1
@@ -154,7 +150,7 @@ mkGoodCHs startoff f =
     else do off <- choose (startoff, length (contents f))
             endDellOff <- choose (off, length (contents f))
             let dels = slice off endDellOff (contents f)
-            news <- arbitrary
+            news <- arbitrary `suchThat` ((>0) . length)
             liftM (ChangeHunk off dels (map asciiStrToString news) :)
                   $ mkGoodCHs (endDellOff + 1) f
    where slice :: Int -> Int -> [a] -> [a]
@@ -242,8 +238,13 @@ prop_maximalConflictSet (PPF p1s p2s) =
 prop_mkGoodCHs :: File -> Gen Bool
 prop_mkGoodCHs f = liftM noConflicts $ mkGoodCHs 0 f
 
-prop_mkGoodPPatches :: PPatchesFromFiles -> Bool
-prop_mkGoodPPatches (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
+prop_mkGoodPPatchesF :: PPatchesFromFiles -> Bool
+prop_mkGoodPPatchesF (PPF p1s p2s) = noConflicts p1s && noConflicts p2s
+
+prop_mkGoodPPatches :: Gen Bool
+prop_mkGoodPPatches = do
+  f <- arbitrary `suchThat` ((>7) . length . contents)
+  liftM noConflicts $ mkGoodPPatches f `suchThat` ((>2) . length)
 
 -- Applying . getEdits is the identity function
 prop_getApplyEdits :: (Eq t, Arbitrary t, Show t) => [t] -> [t] -> Bool
@@ -308,34 +309,23 @@ chooseRight = concatMap (\(Conflict _ p2s) -> p2s)
 identicalConf :: Conflict ParallelPatches -> Bool
 identicalConf (Conflict p1 p2) = p1 == p2
 
-prop_madeTwoBranches :: BranchedCore -> Gen Bool
-prop_madeTwoBranches (BC core b1 b2) = do
-  (bs,_) <- coreToGen getBranches core
-  return (bs == [b1,b2] || bs == [b2,b1])
+--prop_madeTwoBranches :: BranchedCore -> Gen Bool
+--prop_madeTwoBranches (BC core b1 b2) = do
+--  (bs,_) <- coreToGen getBranches core
+--  return (bs == [b1,b2] || bs == [b2,b1])
 
-prop_rebaseEq :: BranchedCore -> Gen Bool
-prop_rebaseEq (BC core b1 b2) = do
-  let wt = ((core,Ephemera b1 []), initFS)
-  (res1,wt1) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
-  (res2,wt2) <- workingTreeToGen (checkoutCom b2 >> startRebase b1) wt
-  case (res1,res2) of
-    (Succ,Succ) -> do
-        (reb1Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt1
-        (reb2Files,_) <- workingTreeToGen (getHC >>= getFilesForCom) wt2
-        return $ reb1Files == reb2Files
-    otherwise -> return False
+prop_rebaseEq :: BranchedCore -> Property
+prop_rebaseEq (BC b1 b2) =
+  let res1DC = simpleRebase b1 b2
+      res2DC = simpleRebase b2 b1
+      noConf = mergeWithoutConf b1 b2
+  in classify (not noConf) "conflicted" (if (not noConf) then True else dContents res1DC == dContents res2DC)
 
-prop_rebaseSucceeds :: BranchedCore -> Gen Bool
-prop_rebaseSucceeds (BC core b1 b2) = do
-  let wt = ((core,Ephemera b1 []), initFS)
-  (res,_) <- workingTreeToGen (checkoutCom b1 >> startRebase b2) wt
-  case res of
-    Succ      -> return True
-    otherwise -> return False
-
-prop_rebaseBothSucc :: BranchedCore -> Gen Bool
-prop_rebaseBothSucc (bc@(BC core b1 b2)) =
-  liftM2 (&&) (prop_rebaseSucceeds bc) (prop_rebaseSucceeds (BC core b2 b1))
+mergeWithoutConf :: DataCommit File -> DataCommit File -> Bool
+mergeWithoutConf d1 d2 =
+  case (mergeCommits d1 d2, mergeCommits d2 d1)
+    of (Left _,Left _) -> True
+       otherwise -> False
 
 --failureRepo :: (BranchedCore -> Bool) -> IO BranchedCore
 --failureRepo bcProp = do
@@ -344,9 +334,26 @@ prop_rebaseBothSucc (bc@(BC core b1 b2)) =
 --  return (BC core b1 b2)
   --(core, Ephemera b1 [])
 
-getBranches :: CoreReader m => m [Commit Hash]
-getBranches = readCore >>= (\(comSet,_) ->
-  let parentList = catMaybes $ Set.toList $ Set.map parent comSet
-      hashes = Set.toList $ Set.map cid comSet
-      branches = hashes \\ parentList
-  in mapM commitById branches)
+--getBranches :: CoreReader m => m [Commit Hash]
+--getBranches = readCore >>= (\(comSet,_) ->
+--  let parentList = catMaybes $ Set.toList $ Set.map parent comSet
+--      hashes = Set.toList $ Set.map cid comSet
+--      branches = hashes \\ parentList
+--  in mapM commitById branches)
+
+prop_sanity :: Gen Bool
+prop_sanity = do
+    f <- arbitrary `suchThat` ((>7) . length . contents)
+    ps <- mkGoodPPatches f `suchThat` ((>2) . length)
+    let hc = DataCommit (Just firstDCom) (Set.singleton f)
+    let newC = patchCommit hc ps
+    let ps' = getDeltaFromPC newC
+    if applicEq f ps ps'
+    then return True
+    else error $ show ps ++ " " ++ show ps'
+  where applicEq :: File -> ParallelPatches -> ParallelPatches -> Bool
+        applicEq f p1s p2s =
+          let f1 = applyPatches (sequenceParallelPatches p1s) [f]
+              f2 = applyPatches (sequenceParallelPatches p2s) [f]
+          in f1 == f2
+

@@ -1,5 +1,7 @@
 module Cases where
-import Nor
+--import Nor
+import Rebase
+import Core
 import ObjectStore
 import qualified Data.Set as Set
 import Data.Algorithm.Diff
@@ -88,3 +90,24 @@ n02 = editsToPatch (getEdits n0 n2) "test"
 p0 = ["",""]
 p1 = []
 p2 = ["a",""]
+
+--Example where the way the patches are created affects if there is conflicts
+--originally d1 -> d4 was done in one patch which wouldn't conflict, but the
+--algorithm now creates multiple small patches, leading to a conflict
+d0 = DataCommit Nothing Set.empty
+d1 = DataCommit (Just d0) (Set.singleton (File "P" ["C","R","W","J","G","J","Y","G"]))
+-- Begin Branch A
+d2 = DataCommit (Just d1) (Set.singleton (File "P" ["C","R","W","J","G","J","Y","J","Y","B","y","m","k","b","s","j","u","o","G","C","u","s","P","Z","U","b","c","X","Z","d","o"]))
+d3 = DataCommit (Just d2) (Set.singleton (File "P" ["C","R","W","J","s","v","I","G","V","J","Y","J","Y","B","y","m","k","b","s","j","u","o","G","C","u","s","P","Z","U","b","c","X","Z","d","o"]))
+-- Begin Branch B
+d4 = DataCommit (Just d1) (Set.singleton (File "P" ["C","T","d","z","L","f","O","q","N","S","G","w","G","F","n","v","O","R","l","R","u","B","A","P","J","g","H","I","H","N","p","F","J","G","J","Y","G"]))
+
+-- New failure case where e2 and e4 dont conflict in their changes but e2 and e3
+-- do, causing the property rebaseEq to fail
+e0 = DataCommit Nothing Set.empty
+e1 = DataCommit (Just e0) (Set.singleton (File "S" ["c","H","R","F","E","p","n","q"]))
+-- Begin Branch A
+e2 = DataCommit (Just e1) (Set.singleton (File "S" ["c","H","R","F","E","p","n","V","s","c","A","e","k","A","L","V","g"]))
+-- Begin Branch B
+e3 = DataCommit (Just e1) (Set.singleton (File "S" ["c","H","R","W","l","A","W","v","U","Y","i","y","W","c","x","x","M","I","N","j","V","k","q","l","P","A","x","s","S","A","P","y","b","f","b","B","Z","Q","E","O","f","H","b","I","K","L","W","k","L","n","a","X","X","f","K","C","A","V","K","L","i","M","G","L","m","w","t","Y","A","v","t","b","y","p","D","o","S","h","G","l","I","R","P","t","i","I","d","x","R","g","u","o","c","I","e","E","X","A","S","z","W","u","g","A","h","G","Q","I","w","X","X","I","m","w","U","i","V","l","R","Q","b","m","w","x","n","X","E","p","n","q"]))
+e4 = DataCommit (Just e3) (Set.singleton (File "S" ["q","S","R","u","R","O","T","I","v","V","j","E","k","T","H","r","p","A","v","H","v","M","e","f","G","S","w","x","w","O","k","R","W","l","A","W","v","U","Y","i","y","W","c","x","x","M","I","N","j","V","k","q","l","P","A","x","s","S","A","P","y","b","f","b","B","Z","Q","E","O","f","H","b","I","K","L","W","k","L","n","a","X","X","f","K","C","A","V","K","L","i","M","G","L","m","w","t","Y","A","v","t","b","y","p","D","o","S","h","G","l","I","R","P","t","i","I","d","x","R","g","u","o","c","I","e","E","X","A","S","z","W","u","g","A","h","G","Q","I","w","X","X","I","m","w","U","i","V","l","R","Q","b","m","w","x","n","X","E","p","n","q"]))
