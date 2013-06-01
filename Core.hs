@@ -10,6 +10,8 @@ module Core
   , coreToIO
   , coreToGen
   , dataCommitById
+  , firstHCom
+  , firstDCom
   )
 where
 
@@ -75,7 +77,7 @@ instance CoreExtender CX where
     where mkCommitHash :: [Hash] -> Hash
           mkCommitHash = Hash . hash . BS.concat . map getHash
   -- Might want a better check here
-  addCommit (DataCommit Nothing _) = return $ HashCommit Nothing Set.empty $ Hash (hash (encode ""))
+  addCommit (DataCommit Nothing _) = return $ firstHCom
 
 instance Serialize File where
     put (File p c) = put p >> put c
@@ -117,10 +119,14 @@ dataCommitById id = do
           com <- dataCommitById id
           return $ Just com
 
+firstDCom :: DataCommit File
+firstDCom = DataCommit Nothing Set.empty
+
+firstHCom :: HashCommit
+firstHCom = HashCommit Nothing Set.empty $ Hash (hash (encode ""))
 -- An empty Core
 initCore :: Core
-initCore = let initC = HashCommit Nothing Set.empty $ Hash (hash (encode ""))
-           in (Set.singleton initC, mkEmptyOS)
+initCore = (Set.singleton firstHCom, mkEmptyOS)
 
 -- Lifts Core Extender into IO
 coreToIO :: CX a -> Core -> IO (a,Core)
