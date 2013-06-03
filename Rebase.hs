@@ -50,8 +50,14 @@ replay fc (toR:toRs) =
   let lca = getLca fc toR
       ppatchF = patchFromCommits lca fc
       deltaStars = map getDeltaFromPC (toR:toRs)
-      deltaTwidles = map (`adjustedByPPatch` ppatchF) deltaStars
+      deltaTwidles = getDeltaTwidles deltaStars ppatchF
   in foldl (\com delta -> patchCommit com delta) fc deltaTwidles
+  where getDeltaTwidles :: [ParallelPatches] -> ParallelPatches -> [ParallelPatches]
+        getDeltaTwidles [] _ = []
+        getDeltaTwidles (delta:deltas) ppatchF =
+          let deltaTwidle = delta `adjustedByPPatch` ppatchF
+              newppatchF = ppatchF `adjustedByPPatch` delta
+          in deltaTwidle : getDeltaTwidles deltas newppatchF
 
 getDeltaFromPC :: DataCommit File -> ParallelPatches
 getDeltaFromPC (DataCommit Nothing _) = []
