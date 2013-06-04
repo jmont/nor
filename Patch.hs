@@ -224,14 +224,14 @@ mergeParallelPatches p1s p2s =
                   ([],[]) (map vertexMap vertexList)
 
 adjustedByPatch :: Patch -> Patch -> Patch
-p2 `adjustedByPatch` p1
-  | conflicts p1 p2 =
-     error $ "adjustPatch got conflicting patches" ++ show p1 ++ " " ++ show p2
+pToAdj `adjustedByPatch` pC
+  | conflicts pC pToAdj =
+     error $ "adjustPatch got conflicting patches" ++ show pC ++ " " ++ show pToAdj
   | otherwise =
-     case (p1,p2) of
-       (AP _ (Change ch1),AP p2 (Change ch2)) ->
-          AP p2 $ Change $ ch2 `adjustedByCH` ch1
-       _ -> p2
+     case (pC,pToAdj) of
+       (AP _ (Change ch1),AP pToAdj (Change ch2)) ->
+          AP pToAdj $ Change $ ch2 `adjustedByCH` ch1
+       _ -> pToAdj
   where adjustedByCH :: ChangeHunk -> ChangeHunk -> ChangeHunk
         ch2 `adjustedByCH` (ChangeHunk off1 old1 new1)
           | off1 < offset ch2 =
@@ -239,4 +239,46 @@ p2 `adjustedByPatch` p1
           | otherwise = ch2
 
 adjustedByPPatch :: ParallelPatches -> ParallelPatches -> ParallelPatches
-pp2 `adjustedByPPatch` pp1 = map (\p -> foldr (flip adjustedByPatch) p pp1) pp2
+ppToAdj `adjustedByPPatch` ppC = map (\p -> foldr (flip adjustedByPatch) p ppC) ppToAdj
+
+adjustedByPatchConf :: Patch -> Patch -> Either Patch (Conflict Patch)
+pToAdj `adjustedByPatchConf` pC
+  | conflicts pC pToAdj =
+      Right (Conflict pC pToAdj)
+  | otherwise =
+     case (pC,pToAdj) of
+       (AP _ (Change ch1),AP pToAdj (Change ch2)) ->
+          Left $ AP pToAdj $ Change $ ch2 `adjustedByCH` ch1
+       _ -> Left pToAdj
+  where adjustedByCH :: ChangeHunk -> ChangeHunk -> ChangeHunk
+        chToAdj `adjustedByCH` (ChangeHunk off1 old1 new1)
+          | off1 < offset chToAdj =
+            ChangeHunk (length new1 - length old1 + offset chToAdj) (old chToAdj) (new chToAdj)
+          | otherwise = chToAdj
+
+adjustedByPPatchConf :: ParallelPatches -> ParallelPatches ->
+                        (ParallelPatches,[Conflict ParallelPatches])
+ppToAdj `adjustedByPPatchConf` ppC =
+  let (noConfs,confs) = ppToAdj `adjustHelper` ppC
+  in (noConfs,asMaxConflictSets confs)
+  where adjustHelper :: ParallelPatches -> ParallelPatches ->
+                        (ParallelPatches,[Conflict Patch])
+        [] `adjustHelper` _ = ([],[])
+        (pToAdj:pToAdjs) `adjustHelper` ppC =
+          let (adjP2,confp2) = foldr (\pC (p,confs) -> case p `adjustedByPatchConf` pC
+                                                      of Left newp -> (newp,confs)
+                                                         Right newConf -> (p, newConf:confs))
+                                                     (pToAdj,[]) ppC
+              (adjP2s,confp2s) = pToAdjs `adjustHelper` ppC
+          in (adjP2:adjP2s,confp2 ++ confp2s)
+
+asMaxConflictSets :: [Conflict Patch] -> [Conflict ParallelPatches]
+asMaxConflictSets confPatches =
+  --This is a slow way of doing it
+  let (noConfs,confs) = uncurry mergeParallelPatches $ unzipConfs confPatches
+  in if null noConfs then confs else error "recived a patch not in conflict"
+  where unzipConfs :: [Conflict Patch] -> (ParallelPatches,ParallelPatches)
+        unzipConfs [] = ([],[])
+        unzipConfs (Conflict p1 p2 : confs) =
+          let (p1s,p2s) = unzipConfs confs
+          in (p1:p1s,p2:p2s)
