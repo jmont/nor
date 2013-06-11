@@ -239,7 +239,7 @@ pToAdj `adjustedByPatch` pC
           | otherwise = ch2
 
 adjustedByPPatch :: ParallelPatches -> ParallelPatches -> ParallelPatches
-ppToAdj `adjustedByPPatch` ppC = map (\p -> foldr (flip adjustedByPatch) p ppC) ppToAdj
+ppToAdj `adjustedByPPatch` ppC = map (\p -> foldr (flip adjustedByPatch) p (sort ppC)) (sort ppToAdj)
 
 adjustedByPatchConf :: Patch -> Patch -> Either Patch (Conflict Patch)
 pToAdj `adjustedByPatchConf` pC
@@ -259,7 +259,7 @@ pToAdj `adjustedByPatchConf` pC
 adjustedByPPatchConf :: ParallelPatches -> ParallelPatches ->
                         (ParallelPatches,[Conflict ParallelPatches])
 ppToAdj `adjustedByPPatchConf` ppC =
-  let (noConfs,confs) = ppToAdj `adjustHelper` ppC
+  let (noConfs,confs) = (sort ppToAdj) `adjustHelper` (sort ppC)
   in (noConfs,asMaxConflictSets confs)
   where adjustHelper :: ParallelPatches -> ParallelPatches ->
                         (ParallelPatches,[Conflict Patch])
