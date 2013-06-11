@@ -59,6 +59,26 @@ replay fc (toR:toRs) =
               newppatchF = ppatchF `adjustedByPPatch` delta
           in deltaTwidle : getDeltaTwidles deltas newppatchF
 
+replayConf :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
+replayConf fc [] = (fc, Succ)
+replayConf fc (toR:toRs) =
+  let lca = getLca fc toR
+      ppatchF = patchFromCommits lca fc
+      deltaStars = map getDeltaFromPC (toR:toRs)
+      (deltaTwidles,res) = getDeltaTwidles deltaStars ppatchF
+      dc = foldl (\com delta -> patchCommit com delta) fc deltaTwidles
+  in case res of
+      Succ -> (dc,Succ)
+      Fail confs -> (dc,Fail (confs,drop (length deltaTwidles) (toR:toRs)))
+  where getDeltaTwidles :: [ParallelPatches] -> ParallelPatches -> ([ParallelPatches], Outcome ConflictPatches)
+        getDeltaTwidles [] _ = ([],Succ)
+        getDeltaTwidles (delta:deltas) ppatchF =
+          case (delta `adjustedByPPatchConf` ppatchF,ppatchF `adjustedByPPatchConf` delta) of
+            ((deltaTwidle,[]),(newppatchF,[])) ->
+              let (deltaTwiddles,res) = getDeltaTwidles deltas newppatchF
+              in (deltaTwidle : deltaTwiddles,res)
+            ((noConfs,confs),_) -> ([],Fail (CP confs noConfs))
+
 getDeltaFromPC :: DataCommit File -> ParallelPatches
 getDeltaFromPC (DataCommit Nothing _) = []
 getDeltaFromPC c@(DataCommit (Just pc) _) = patchFromCommits pc c
@@ -70,26 +90,6 @@ patchCommit dc pp =
   in DataCommit (Just dc) (Set.fromList newFiles)
 
 
---replay :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
---replay hc [] = (hc, Succ)
---replay hc (toR:toRs) =
---    case mergeCommits hc toR of
---      Left hc' -> replay hc' toRs
---      --Should we peel off like this?
---      Right confPatches -> (hc,Fail (confPatches, toRs))
-
---startRebase :: WorkingTreeWriter m => HashCommit -> m (Outcome ())
---startRebase hFoundation = do
---    hfromC <- getHC
---    dfromC <- dataCommitById $ cid hfromC
---    dFoundation <- dataCommitById $ cid hFoundation
---    let lca = getLca dfromC dFoundation
---    --Single exit, single entry subgraph
---    let toRs = reverse $ (takeWhile (/= lca)) (ancestorList dfromC)
---    checkoutCom hFoundation
---    updateToRs toRs
---    rebase
---
 applyConflictPatches :: WorkingTreeWriter m => ConflictPatches -> m ()
 applyConflictPatches (CP confs noConfs) =
   let conflictPatches = map conflictAsPatch confs
