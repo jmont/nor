@@ -5,11 +5,8 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 
 import Core
---import ObjectStore
 import WorkingTree
 import Patch
---import Repo
---import ObjectStore
 
 data Outcome a = Succ | Fail a deriving Show
 
@@ -37,16 +34,16 @@ mergeCommits ca cb =
           identicalConf :: Conflict ParallelPatches -> Bool
           identicalConf (Conflict p1 p2) = p1 == p2
 
-simpleRebase :: DataCommit File -> DataCommit File -> DataCommit File
-simpleRebase dFoundation dRebase =
+rebaseNoConf :: DataCommit File -> DataCommit File -> DataCommit File
+rebaseNoConf dFoundation dRebase =
   let lca = getLca dRebase dFoundation
       toRs = reverse $ (takeWhile (/= lca)) (ancestorList dRebase)
-  in  replay dFoundation toRs
+  in  replayNoConf dFoundation toRs
 
 -- Assumes no conflicts
-replay :: DataCommit File -> [DataCommit File] -> DataCommit File
-replay fc [] = fc
-replay fc (toR:toRs) =
+replayNoConf :: DataCommit File -> [DataCommit File] -> DataCommit File
+replayNoConf fc [] = fc
+replayNoConf fc (toR:toRs) =
   let lca = getLca fc toR
       ppatchF = patchFromCommits lca fc
       deltaStars = map getDeltaFromPC (toR:toRs)
@@ -59,22 +56,21 @@ replay fc (toR:toRs) =
               newppatchF = ppatchF `adjustedByPPatch` delta
           in deltaTwidle : getDeltaTwidles deltas newppatchF
 
-rebaseConf :: DataCommit File -> DataCommit File -> (DataCommit File, Outcome ([File],[DataCommit File]))
-rebaseConf dFoundation dRebase =
-  let lca = getLca dRebase dFoundation
-      toRs = reverse $ (takeWhile (/= lca)) (ancestorList dRebase)
-  in case replayConf dFoundation toRs of
-      (dc,Succ) -> (dc,Succ)
-      (dc@(DataCommit _ fileSet),Fail (CP confs noConfs,toRs)) ->
-        let noConfsSeq = sequenceParallelPatches noConfs
-            invertedPatches = concatMap (\(Conflict _ p1s) -> map invert p1s) confs
-            conflictPatches = map conflictAsPatch confs
-            adjInvertedPs = invertedPatches `adjustedByPPatch` noConfs
-            adjConflictPs = conflictPatches `adjustedByPPatch` noConfs
-            adjInvertedPsSeq = sequenceParallelPatches adjInvertedPs
-            adjConflictPsSeq = sequenceParallelPatches adjConflictPs
-            newFiles = ((applyPatches adjConflictPsSeq) . (applyPatches adjInvertedPsSeq) . (applyPatches noConfsSeq)) (Set.toList fileSet)
-        in (dc,Fail (newFiles,toRs))
+rebaseConf :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome ([File],[DataCommit File]))
+rebaseConf dFoundation dToRs =
+  case replayConf dFoundation dToRs of
+    (dc,Succ) -> (dc,Succ)
+    (dc@(DataCommit _ fileSet),Fail (CP confs noConfs,newToRs)) ->
+      let noConfsSeq = sequenceParallelPatches noConfs
+          invertedPatches = concatMap (\(Conflict _ p1s) -> map invert p1s) confs
+          conflictPatches = map conflictAsPatch confs
+          adjInvertedPs = invertedPatches `adjustedByPPatch` noConfs
+          adjConflictPs = conflictPatches `adjustedByPPatch` noConfs
+          adjInvertedPsSeq = sequenceParallelPatches adjInvertedPs
+          adjConflictPsSeq = sequenceParallelPatches adjConflictPs
+          newFiles = ((applyPatches adjConflictPsSeq) . (applyPatches adjInvertedPsSeq) . (applyPatches noConfsSeq)) (Set.toList fileSet)
+      -- If there was a conflict, drop the commit that conflicted
+      in (dc,Fail (newFiles,tail newToRs))
 
 
 replayConf :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
@@ -114,20 +110,6 @@ applyConflictPatches (CP confs noConfs) =
       allPatches = sequenceParallelPatches (conflictPatches ++ noConfs)
   in applyFileTrans (applyPatches allPatches)
 
--- This is still ugly
---rebase :: m (Outcome ())
---rebase = do
---   hc <- (getHC >>= (dataCommitById . cid))
---   htoRs <- getToRs
---   dtoRs <- mapM (dataCommitById . cid) htoRs
---   case replay hc dtoRs of
---    (hc',Succ) -> addCommit hc' >> return Succ
---    (hc',Fail (CP confs noConfs,toRs')) ->
---      -- This is safe because it always succeeds when toRs is empty
---      let lca = getLca hc (head dtoRs)
---      in checkoutCom lca >> applyConflictPatches >> updateToRs toRs' >>
---         updateHead hc' >> return (Fail ())
---
 -- youngest to oldest
 ancestorList :: DataCommit a -> [DataCommit a]
 ancestorList c1@(DataCommit Nothing _)    = [c1]
