@@ -12,10 +12,13 @@ module Core
   , dataCommitById
   , firstHCom
   , firstDCom
+  , getLcaH
+  , ancestorListH
   )
 where
 
 import Control.Applicative
+import Control.Monad
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import Data.Serialize
@@ -101,6 +104,19 @@ commitById :: CoreReader m => Hash -> m (HashCommit)
 commitById id = readCore >>= (\(commitSet,_) -> return
     (foldl (\z c@(HashCommit _ _ cid) -> if id == cid then c else z)
            (error "Commit not found") (Set.elems commitSet)))
+
+getLcaH :: CoreReader m => HashCommit -> HashCommit -> m (HashCommit)
+getLcaH ca cb = do
+   ancSetA <- liftM Set.fromList (ancestorListH ca)
+   ancB <- ancestorListH cb
+   return (foldr (\a z -> if Set.member a ancSetA then a else z)
+      (error "No LCA") ancB)
+
+-- youngest to oldest order
+ancestorListH :: CoreReader m => HashCommit -> m [HashCommit]
+ancestorListH c1@(HashCommit Nothing _ _)    = return [c1]
+ancestorListH c1@(HashCommit (Just pid) _ _) = readCore >>
+   liftM (c1 :) (commitById pid >>= ancestorListH)
 
 --commitById' :: CoreReader m => Hash -> m (Maybe HashCommit)
 --commitById' id = readCore >>= (\(commitSet,_) -> return
