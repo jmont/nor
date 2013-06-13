@@ -239,7 +239,7 @@ pToAdj `adjustedByPatch` pC
           | otherwise = ch2
 
 adjustedByPPatch :: ParallelPatches -> ParallelPatches -> ParallelPatches
-ppToAdj `adjustedByPPatch` ppC = map (\p -> foldr (flip adjustedByPatch) p (sort ppC)) (sort ppToAdj)
+ppToAdj `adjustedByPPatch` ppC = map (\p -> foldr (flip adjustedByPatch) p (sort ppC)) (reverse (sort ppToAdj))
 
 adjustedByPatchConf :: Patch -> Patch -> Either Patch (Conflict Patch)
 pToAdj `adjustedByPatchConf` pC
@@ -256,21 +256,39 @@ pToAdj `adjustedByPatchConf` pC
             ChangeHunk (length new1 - length old1 + offset chToAdj) (old chToAdj) (new chToAdj)
           | otherwise = chToAdj
 
-adjustedByPPatchConf :: ParallelPatches -> ParallelPatches ->
+--adjustedByPPatchConf :: ParallelPatches -> ParallelPatches ->
+--                        (ParallelPatches,[Conflict ParallelPatches])
+--ppToAdj `adjustedByPPatchConf` ppC =
+--  let (noConfs,confs) = (reverse (sort ppToAdj)) `adjustHelper` (sort ppC)
+--  in (noConfs,asMaxConflictSets confs)
+--  where adjustHelper :: ParallelPatches -> ParallelPatches ->
+--                        (ParallelPatches,[Conflict Patch])
+--        [] `adjustHelper` _ = ([],[])
+--        (pToAdj:pToAdjs) `adjustHelper` ppC =
+--          let (adjP2,confp2) = foldr (\pC (p,confs) -> case p `adjustedByPatchConf` pC
+--                                                      of Left newp -> (newp,confs)
+--                                                         Right newConf -> (p, newConf:confs))
+--                                                     (pToAdj,[]) ppC
+--              (adjP2s,confp2s) = pToAdjs `adjustHelper` ppC
+--          in if null confp2s (adjP2s,confp2s)
+
+
+adjustedByPPatchConf :: Patch -> ParallelPatches -> Either Patch [Conflict Patch]
+pToAdj `adjustedByPPatchConf` ppC =
+  let confs = filter (conflicts pToAdj) ppC
+  in if null confs
+     then Left $ foldr (flip adjustedByPatch) pToAdj (sort ppC)
+     else Right $ map (Conflict pToAdj) confs
+
+ppsAdjustedByPPatchConf :: ParallelPatches -> ParallelPatches ->
                         (ParallelPatches,[Conflict ParallelPatches])
-ppToAdj `adjustedByPPatchConf` ppC =
-  let (noConfs,confs) = (sort ppToAdj) `adjustHelper` (sort ppC)
+ppsToAdj `ppsAdjustedByPPatchConf` ppC =
+  let (noConfs,confs) =
+        foldr (\pToAdj (noConfs,confs)-> case pToAdj `adjustedByPPatchConf` ppC of
+                                            Left newp -> (newp:noConfs,confs)
+                                            Right conf -> (noConfs,conf ++ confs))
+              ([],[]) (sort ppsToAdj)
   in (noConfs,asMaxConflictSets confs)
-  where adjustHelper :: ParallelPatches -> ParallelPatches ->
-                        (ParallelPatches,[Conflict Patch])
-        [] `adjustHelper` _ = ([],[])
-        (pToAdj:pToAdjs) `adjustHelper` ppC =
-          let (adjP2,confp2) = foldr (\pC (p,confs) -> case p `adjustedByPatchConf` pC
-                                                      of Left newp -> (newp,confs)
-                                                         Right newConf -> (p, newConf:confs))
-                                                     (pToAdj,[]) ppC
-              (adjP2s,confp2s) = pToAdjs `adjustHelper` ppC
-          in (adjP2:adjP2s,confp2 ++ confp2s)
 
 asMaxConflictSets :: [Conflict Patch] -> [Conflict ParallelPatches]
 asMaxConflictSets confPatches =
