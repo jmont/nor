@@ -91,6 +91,32 @@ p0 = ["",""]
 p1 = []
 p2 = ["a",""]
 
+-- Testing new rebase with an example that conflicts
+q0 = words "a b c"
+q1 = words "m n b c"
+q2 = words "m n b c e"
+q3 = words "a b d"
+q4 = words "q b f"
+qFoundation = editsToPatch (getEdits q0 q2) "test"
+q03 = editsToPatch (getEdits q0 q3) "test"
+q34 = editsToPatch (getEdits q3 q4) "test"
+qd0 = DataCommit (Just (DataCommit Nothing Set.empty)) (Set.singleton (File "test" q0))
+-- Begin Branch A
+qd1 = DataCommit (Just qd0) (Set.singleton (File "test" q1))
+qd2 = DataCommit (Just qd1) (Set.singleton (File "test" q2))
+-- Begin Branch B
+qd3 = DataCommit (Just qd0) (Set.singleton (File "test" q3))
+qd4 = DataCommit (Just qd3) (Set.singleton (File "test" q4))
+--(dc@(DataCommit _ fileSet),Fail (CP confs noConfs,toRs)) = replayConf qd2 [qd3,qd4]
+--noConfsSeq = sequenceParallelPatches noConfs
+--invertedPatches = concatMap (\(Conflict _ p1s) -> map invert p1s) confs
+--conflictPatches = map conflictAsPatch confs
+--adjInvertedPs = invertedPatches `adjustedByPPatch` noConfs
+--adjConflictPs = conflictPatches `adjustedByPPatch` noConfs
+--adjInvertedPsSeq = sequenceParallelPatches adjInvertedPs
+--adjConflictPsSeq = sequenceParallelPatches adjConflictPs
+--newFiles = ((applyPatches adjConflictPsSeq) . (applyPatches adjInvertedPsSeq) . (applyPatches noConfsSeq)) (Set.toList fileSet)
+
 --Example where the way the patches are created affects if there is conflicts
 --originally d1 -> d4 was done in one patch which wouldn't conflict, but the
 --algorithm now creates multiple small patches, leading to a conflict
