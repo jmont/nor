@@ -60,6 +60,20 @@ instance Conflictable PatchAction where
 instance Conflictable t => Conflictable (AtPath t) where
    conflicts (AP p1 t1) (AP p2 t2) = p1 == p2 && conflicts t1 t2
 
+class Invertable t where
+   invert :: t -> t
+
+instance Invertable ChangeHunk where
+   invert ch = ChangeHunk (offset ch) (new ch) (old ch)
+
+instance Invertable PatchAction where
+   invert (Change ch) = Change $ invert ch
+   invert (RemoveFile f) = CreateFile f
+   invert (CreateFile f) = RemoveFile f
+
+instance Invertable t => Invertable (AtPath t) where
+   invert (AP p t) = AP p (invert t)
+
 appath :: AtPath t -> Path
 appath (AP p _) = p
 
@@ -160,9 +174,9 @@ conflictAsPatch (Conflict [p1] [p2]) =
   if p1 == p2
     then p1
     else conflictAsPatch' (AP (appath p1) (Conflict [fromPath p1] [fromPath p2]))
-conflictAsPatch (Conflict p1s p2s) =
-   let p = appath $ head p1s --Conflict list should never be empty
-       pa1s = map fromPath p1s
+conflictAsPatch (Conflict (p1:p1s) p2s) =
+   let p = appath $ p1
+       pa1s = map fromPath (p1:p1s)
        pa2s = map fromPath p2s
    in conflictAsPatch' (AP p (Conflict pa1s pa2s))
 
