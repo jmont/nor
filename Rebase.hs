@@ -11,7 +11,7 @@ import Patch
 --import Repo
 --import ObjectStore
 
-data Outcome a = Succ | Fail a
+data Outcome a = Succ | Fail a deriving Show
 
 data ConflictPatches = CP [Conflict ParallelPatches] ParallelPatches deriving Show
 
@@ -59,6 +59,24 @@ replay fc (toR:toRs) =
               newppatchF = ppatchF `adjustedByPPatch` delta
           in deltaTwidle : getDeltaTwidles deltas newppatchF
 
+rebaseConf :: DataCommit File -> DataCommit File -> (DataCommit File, Outcome ([File],[DataCommit File]))
+rebaseConf dFoundation dRebase =
+  let lca = getLca dRebase dFoundation
+      toRs = reverse $ (takeWhile (/= lca)) (ancestorList dRebase)
+  in case replayConf dFoundation toRs of
+      (dc,Succ) -> (dc,Succ)
+      (dc@(DataCommit _ fileSet),Fail (CP confs noConfs,toRs)) ->
+        let noConfsSeq = sequenceParallelPatches noConfs
+            invertedPatches = concatMap (\(Conflict _ p1s) -> map invert p1s) confs
+            conflictPatches = map conflictAsPatch confs
+            adjInvertedPs = invertedPatches `adjustedByPPatch` noConfs
+            adjConflictPs = conflictPatches `adjustedByPPatch` noConfs
+            adjInvertedPsSeq = sequenceParallelPatches adjInvertedPs
+            adjConflictPsSeq = sequenceParallelPatches adjConflictPs
+            newFiles = ((applyPatches adjConflictPsSeq) . (applyPatches adjInvertedPsSeq) . (applyPatches noConfsSeq)) (Set.toList fileSet)
+        in (dc,Fail (newFiles,toRs))
+
+
 replayConf :: DataCommit File -> [DataCommit File] -> (DataCommit File, Outcome (ConflictPatches, [DataCommit File]))
 replayConf fc [] = (fc, Succ)
 replayConf fc (toR:toRs) =
@@ -73,7 +91,7 @@ replayConf fc (toR:toRs) =
   where getDeltaTwidles :: [ParallelPatches] -> ParallelPatches -> ([ParallelPatches], Outcome ConflictPatches)
         getDeltaTwidles [] _ = ([],Succ)
         getDeltaTwidles (delta:deltas) ppatchF =
-          case (delta `adjustedByPPatchConf` ppatchF,ppatchF `adjustedByPPatchConf` delta) of
+          case (delta `ppsAdjustedByPPatchConf` ppatchF,ppatchF `ppsAdjustedByPPatchConf` delta) of
             ((deltaTwidle,[]),(newppatchF,[])) ->
               let (deltaTwiddles,res) = getDeltaTwidles deltas newppatchF
               in (deltaTwidle : deltaTwiddles,res)
