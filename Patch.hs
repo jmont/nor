@@ -115,7 +115,8 @@ applyEdits es strs = aE es strs
    where aE (C:es) (str2:strs) =
             str2 : aE es strs
          aE (D str1 : es) (str2:strs) =
-            if str1 == str2 then aE es strs else error "Deletes don't match"
+            if str1 == str2 then aE es strs
+                            else error ("Deletes don't match, tried to delete " ++ show str1 ++ " but found " ++ show str2)
          aE (I str1 : es) strs = str1 : aE es strs
          aE [] [] = []
          aE es strs = error ("Bad things happened: es:" ++ show es ++
